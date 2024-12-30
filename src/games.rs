@@ -5,7 +5,7 @@ pub enum GpuType {
     AMD,
     ATI,
     Intel,
-    Unkown,
+    Unknown,
 }
 pub enum GameType {
     SHOOTING,
@@ -21,17 +21,16 @@ pub enum LindberghColor {
 }
 
 pub struct GameData {
-    game_type: Option<GameType>,
-    not_working_on_ati: bool,
-    game_title: String,
-    game_id: String,
-    game_dvp: String,
+    pub game_type: Option<GameType>,
+    pub not_working_on_ati: bool,
+    pub game_title: String,
+    pub game_id: String,
+    pub game_dvp: String,
     // true = Working false = Not working/Unkown
-    game_status: bool,
-    lindbergh_color: LindberghColor,
-    executable_path: String,
+    pub game_status: bool,
+    pub lindbergh_color: LindberghColor,
+    pub executable_path: String,
 }
-
 impl Default for GameData {
     fn default() -> Self {
         Self {
@@ -49,8 +48,8 @@ impl Default for GameData {
 // Those variable names will be used to generate pretty names
 // We do not care about revs
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Eq)]
-enum GameTitle {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum GameTitle {
     After_Burner_Climax,
     // After_Burner_Climax_Rev_A,
     // After_Burner_Climax_Rev_B,
@@ -86,7 +85,6 @@ enum GameTitle {
     // Outrun_2_Sp_Sdx_Rev_A,
     // Outrun_2_Sp_Sdx_Rev_A_Test,
     // Outrun_2_Sp_Sdx_Rev_A_Test2,
-    Outrun_2_SP_SDX_Test,
     Primeval_Hunt,
     Rambo,
     Rambo_China,
@@ -97,7 +95,6 @@ enum GameTitle {
     Segaboot_2_6,
     Sega_Race_TV,
     The_House_Of_The_Dead_4,
-    The_House_Of_The_Dead_4_Test,
     // The_House_Of_The_Dead_4_Rev_A,
     // The_House_Of_The_Dead_4_Rev_A_Test,
     // The_House_Of_The_Dead_4_Rev_B,
@@ -105,13 +102,10 @@ enum GameTitle {
     // The_House_Of_The_Dead_4_Rev_C,
     // The_House_Of_The_Dead_4_Rev_C_Test,
     The_House_Of_The_Dead_4_Special,
-    The_House_Of_The_Dead_4_Special_Test,
     // The_House_Of_The_Dead_4_Special_Rev_B,
     // The_House_Of_The_Dead_4_Special_Rev_B_Test,
     The_House_Of_The_Dead_EX,
-    The_House_Of_The_Dead_EX_Test,
     Too_Spicy,
-    Too_Spicy_Test,
     Virtua_Fighter_5,
     // Virtua_Fighter_5_Rev_A,
     // Virtua_Fighter_5_Rev_B,
@@ -125,7 +119,6 @@ enum GameTitle {
     // Virtua_Fighter_5_R_Rev_D,
     // Virtua_Fighter_5_R_Rev_G,
     Virtua_Tennis_3,
-    Virtua_Tennis_3_Test,
     // Virtua_Tennis_3_Rev_A,
     // Virtua_Tennis_3_Rev_A_Test,
     // Virtua_Tennis_3_Rev_B,
@@ -134,9 +127,14 @@ enum GameTitle {
     // Virtua_Tennis_3_Rev_C_Test,
     Unknown,
 }
-impl From<String> for GameTitle {
-    fn from(value: String) -> Self {
-        match value.as_str() {
+impl Default for GameTitle {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+impl<T: Into<String>> From<T> for GameTitle {
+    fn from(value: T) -> Self {
+        match value.into().as_str() {
             "After Burner Climax" => GameTitle::After_Burner_Climax,
             "After Burner Climax SDX" => GameTitle::After_Burner_Climax_SDX,
             "After Burner Climax SE" => GameTitle::After_Burner_Climax_SE,
@@ -146,18 +144,21 @@ impl From<String> for GameTitle {
             "Hummer SDLX" => GameTitle::Hummer_SDLX,
             "Hummer Extreme" => GameTitle::Hummer_Extreme,
             "Hummer Extreme MDX" => GameTitle::Hummer_Extreme_MDX,
-            "InitialD 4" => GameTitle::InitialD_4,
-            "InitialD 4 Export" => GameTitle::InitalD_4_Export,
-            "InitialD 5 Japan" => GameTitle::InitialD_5_Japan,
-            "InitalD 5 Export Ver 2," => GameTitle::InitalD_5_Export_Ver_2,
+            "InitialD 4" | "Initial D Arcade Stage 4" => GameTitle::InitialD_4,
+            "InitialD 4 Export" | "Initial D Arcade Stage 4 Export" => GameTitle::InitalD_4_Export,
+            "InitialD 5 Japan" | "Initial D Arcade Stage 5" => GameTitle::InitialD_5_Japan,
+            "InitalD 5 Export Ver 2" => GameTitle::InitalD_5_Export_Ver_2,
             "InitalD 5 Export Ver 4" => GameTitle::InitalD_5_Export_Ver_4,
             "Segaboot 2 4" => GameTitle::Segaboot_2_4,
             "Segaboot 2 4 With Symbols" => GameTitle::Segaboot_2_4_With_Symbols,
             "Segaboot 2 6" => GameTitle::Segaboot_2_6,
-            "Lets Go Jungle" => GameTitle::Lets_Go_Jungle,
-            "Lets Go Jungle Special" => GameTitle::Lets_Go_Jungle_Special,
+            "Lets Go Jungle" | "Let's Go Jungle! Lost on the Island of Spice!" => {
+                GameTitle::Lets_Go_Jungle
+            }
+            "Lets Go Jungle Special" | "Let's Go Jungle! Special!" => {
+                GameTitle::Lets_Go_Jungle_Special
+            }
             "Outrun 2 SP SDX" => GameTitle::Outrun_2_SP_SDX,
-            "Outrun 2 SP SDX Test" => GameTitle::Outrun_2_SP_SDX_Test,
             "Primeval Hunt" => GameTitle::Primeval_Hunt,
             "Rambo" => GameTitle::Rambo,
             "Rambo China" => GameTitle::Rambo_China,
@@ -165,22 +166,15 @@ impl From<String> for GameTitle {
             "Segaboot" => GameTitle::Segaboot,
             "Sega Race TV" => GameTitle::Sega_Race_TV,
             "The House Of The Dead 4" => GameTitle::The_House_Of_The_Dead_4,
-            "The House Of The Dead 4 Test" => GameTitle::The_House_Of_The_Dead_4_Test,
             "Too Spicy" => GameTitle::Too_Spicy,
             "Unknown" => GameTitle::Unknown,
             "Virtua Fighter 5" => GameTitle::Virtua_Fighter_5,
             "Virtua Tennis 3" => GameTitle::Virtua_Tennis_3,
             "The House Of The Dead 4 Special" => GameTitle::The_House_Of_The_Dead_4_Special,
-            "The House Of The Dead 4 Special Test" => {
-                GameTitle::The_House_Of_The_Dead_4_Special_Test
-            }
             "The House Of The Dead EX" => GameTitle::The_House_Of_The_Dead_EX,
-            "The House Of The Dead EX Test" => GameTitle::The_House_Of_The_Dead_EX_Test,
-            "Too Spicy Test" => GameTitle::Too_Spicy_Test,
             "Virtua Fighter 5 Export" => GameTitle::Virtua_Fighter_5_Export,
             "Virtua Fighter 5 Final Showdown" => GameTitle::Virtua_Fighter_5_Final_Showdown,
             "Virtua Fighter 5 R" => GameTitle::Virtua_Fighter_5_R,
-            "Virtua Tennis 3 Test" => GameTitle::Virtua_Tennis_3_Test,
             _ => GameTitle::Unknown,
         }
     }
@@ -188,12 +182,15 @@ impl From<String> for GameTitle {
 impl Into<GameData> for GameTitle {
     fn into(self) -> GameData {
         match self {
-            Self::Segaboot_2_4 | Self::Segaboot_2_4_With_Symbols => GameData {
+            Self::Segaboot
+            | Self::Segaboot_2_4
+            | Self::Segaboot_2_4_With_Symbols
+            | Self::Segaboot_2_6 => GameData {
                 game_title: self.to_string(),
                 game_status: true,
                 ..Default::default()
             },
-            Self::The_House_Of_The_Dead_4 | Self::The_House_Of_The_Dead_4_Test => GameData {
+            Self::The_House_Of_The_Dead_4 => GameData {
                 game_title: self.to_string(),
                 game_id: "SBLC".into(),
                 game_type: Some(GameType::SHOOTING),
@@ -201,17 +198,15 @@ impl Into<GameData> for GameTitle {
                 game_dvp: "DVP-003B".into(),
                 ..Default::default()
             },
-            Self::The_House_Of_The_Dead_4_Special | Self::The_House_Of_The_Dead_4_Special_Test => {
-                GameData {
-                    game_title: self.to_string(),
-                    game_id: "SBLS".into(),
-                    game_type: Some(GameType::SHOOTING),
-                    game_dvp: "DVP-0010".into(),
-                    game_status: true,
-                    ..Default::default()
-                }
-            }
-            Self::The_House_Of_The_Dead_EX | Self::The_House_Of_The_Dead_EX_Test => GameData {
+            Self::The_House_Of_The_Dead_4_Special => GameData {
+                game_title: self.to_string(),
+                game_id: "SBLS".into(),
+                game_type: Some(GameType::SHOOTING),
+                game_dvp: "DVP-0010".into(),
+                game_status: true,
+                ..Default::default()
+            },
+            Self::The_House_Of_The_Dead_EX => GameData {
                 game_title: self.to_string(),
                 game_id: "SBRC".into(),
                 game_type: Some(GameType::SHOOTING),
@@ -219,7 +214,7 @@ impl Into<GameData> for GameTitle {
                 game_status: true,
                 ..Default::default()
             },
-            Self::Outrun_2_SP_SDX | Self::Outrun_2_SP_SDX_Test => GameData {
+            Self::Outrun_2_SP_SDX => GameData {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0015".into(),
                 game_id: "SBMB".into(),
@@ -287,6 +282,7 @@ impl Into<GameData> for GameTitle {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0018-SDX".into(),
                 game_id: "SBMN".into(),
+                not_working_on_ati: true,
                 game_type: Some(GameType::ABC),
                 game_status: true,
                 ..Default::default()
@@ -295,6 +291,7 @@ impl Into<GameData> for GameTitle {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0031".into(),
                 game_id: "SBLR".into(),
+                not_working_on_ati: true,
                 game_type: Some(GameType::ABC),
                 game_status: true,
                 ..Default::default()
@@ -334,12 +331,12 @@ impl Into<GameData> for GameTitle {
             Self::R_Tuned => GameData {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0044".into(),
-                game_id: "SBPF".into(),
+                game_id: "SBQW".into(),
                 game_type: Some(GameType::SHOOTING),
                 game_status: true,
                 ..Default::default()
             },
-            Self::Too_Spicy | Self::Too_Spicy_Test => GameData {
+            Self::Too_Spicy => GameData {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0027".into(),
                 game_id: "SBMV".into(),
@@ -347,7 +344,7 @@ impl Into<GameData> for GameTitle {
                 game_type: Some(GameType::SHOOTING),
                 ..Default::default()
             },
-            Self::Virtua_Tennis_3 | Self::Virtua_Tennis_3_Test => GameData {
+            Self::Virtua_Tennis_3 => GameData {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0005".into(),
                 game_id: "SBKX".into(),
@@ -386,13 +383,14 @@ impl Into<GameData> for GameTitle {
                 not_working_on_ati: true,
                 game_id: "SBTS".into(),
                 game_type: Some(GameType::DRIVING),
-                ..Default::default()
+                lindbergh_color: LindberghColor::YELLOW,
+                executable_path: "".into(),
             },
             Self::InitalD_5_Export_Ver_4 => GameData {
                 game_title: self.to_string(),
                 game_status: true,
                 game_dvp: "DVP-0084".into(),
-                game_id: "SBQN".into(),
+                game_id: "SBTS".into(),
                 game_type: Some(GameType::DRIVING),
                 ..Default::default()
             },
@@ -445,6 +443,11 @@ impl ToString for GameTitle {
         format!("{:?}", self).replace("_", " ")
     }
 }
+impl Into<GameTitle> for GameData {
+    fn into(self) -> GameTitle {
+        GameTitle::from(self.game_title)
+    }
+}
 pub fn detect_gpu() -> Option<GpuType> {
     let op = Command::new("sh")
         .arg("-c")
@@ -488,7 +491,7 @@ pub fn detect_gpu() -> Option<GpuType> {
                                 if !resl.stdout.is_empty() {
                                     return Some(GpuType::ATI);
                                 } else {
-                                    return Some(GpuType::Unkown);
+                                    return Some(GpuType::Unknown);
                                 }
                             } else {
                                 return None;
@@ -498,7 +501,7 @@ pub fn detect_gpu() -> Option<GpuType> {
                         return None;
                     }
                 } else {
-                    return Some(GpuType::Unkown);
+                    return Some(GpuType::Unknown);
                 }
             } else {
                 return None;
