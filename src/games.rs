@@ -1,12 +1,6 @@
 use std::{fmt::Debug, process::Command};
+use crate::config::LindberghConfig;
 
-pub enum GpuType {
-    Nvidia,
-    AMD,
-    ATI,
-    Intel,
-    Unknown,
-}
 pub enum GameType {
     SHOOTING,
     DRIVING,
@@ -15,10 +9,7 @@ pub enum GameType {
     VT3,
     ABC,
 }
-pub enum LindberghColor {
-    YELLOW,
-    RED,
-}
+
 
 pub struct GameData {
     pub game_type: Option<GameType>,
@@ -28,8 +19,8 @@ pub struct GameData {
     pub game_dvp: String,
     // true = Working false = Not working/Unkown
     pub game_status: bool,
-    pub lindbergh_color: LindberghColor,
-    pub executable_path: String,
+    pub config: LindberghConfig,
+
 }
 impl Default for GameData {
     fn default() -> Self {
@@ -40,8 +31,7 @@ impl Default for GameData {
             game_id: "Unkown".into(),
             game_dvp: "DVP-XXXX".into(),
             game_status: false,
-            lindbergh_color: LindberghColor::YELLOW,
-            executable_path: "".into(),
+            config: LindberghConfig::default()
         }
     }
 }
@@ -383,8 +373,7 @@ impl Into<GameData> for GameTitle {
                 not_working_on_ati: true,
                 game_id: "SBTS".into(),
                 game_type: Some(GameType::DRIVING),
-                lindbergh_color: LindberghColor::YELLOW,
-                executable_path: "".into(),
+                ..Default::default()
             },
             Self::InitalD_5_Export_Ver_4 => GameData {
                 game_title: self.to_string(),
@@ -448,66 +437,4 @@ impl Into<GameTitle> for GameData {
         GameTitle::from(self.game_title)
     }
 }
-pub fn detect_gpu() -> Option<GpuType> {
-    let op = Command::new("sh")
-        .arg("-c")
-        .arg("lspci | grep VGA | head -1")
-        .output();
-    if let Ok(res) = op {
-        if !res.status.success() {
-            return None;
-        } else {
-            let opstr = String::from_utf8(res.stdout);
-            if let Ok(opstr) = opstr {
-                let u = opstr.to_uppercase();
-                if u.contains("NVIDIA") {
-                    return Some(GpuType::Nvidia);
-                } else if u.contains("INTEL") {
-                    return Some(GpuType::Intel);
-                } else if u.contains("AMD") && !u.contains("ATI") {
-                    return Some(GpuType::AMD);
-                } else if u.contains("ATI") && !u.contains("AMD") {
-                    return Some(GpuType::ATI);
-                } else if u.contains("AMD") && u.contains("ATI") {
-                    let amdosd = Command::new("sh")
-                        .arg("-c")
-                        .arg("lsmod | grep amdgpu")
-                        .output();
-                    let amdld = Command::new("sh")
-                        .arg("-c")
-                        .arg("lsmod | grep radeon")
-                        .output();
-                    if let Ok(reso) = amdosd {
-                        if !reso.status.success() {
-                            return None;
-                        }
-                        if !reso.stdout.is_empty() {
-                            return Some(GpuType::AMD);
-                        } else {
-                            if let Ok(resl) = amdld {
-                                if !resl.status.success() {
-                                    return None;
-                                }
-                                if !resl.stdout.is_empty() {
-                                    return Some(GpuType::ATI);
-                                } else {
-                                    return Some(GpuType::Unknown);
-                                }
-                            } else {
-                                return None;
-                            }
-                        }
-                    } else {
-                        return None;
-                    }
-                } else {
-                    return Some(GpuType::Unknown);
-                }
-            } else {
-                return None;
-            }
-        }
-    } else {
-        return None;
-    }
-}
+

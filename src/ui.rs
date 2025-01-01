@@ -1,4 +1,5 @@
 use crate::games::{GameData, GameTitle};
+use crate::config::SdlKeymap;
 use eframe::egui::{self, Color32, Modal, RichText, Spacing};
 enum AppState {
     MainPage,
@@ -167,7 +168,7 @@ impl LoaderApp {
                             {
                                 let mut del: i32 = -1;
                                 for (cnt, i) in self.game_library.iter().enumerate() {
-                                    if i.game_title == self.current_game.to_string() {
+                                    if Into::<GameData>::into(self.current_game.clone()).game_dvp == i.game_dvp {
                                         del = cnt as i32;
                                     }
                                 }
@@ -194,7 +195,6 @@ impl LoaderApp {
                             ui.end_row();
                         });
                 });
-
                 ui.separator();
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
@@ -223,16 +223,15 @@ impl LoaderApp {
             });
     }
     fn new_game_ui(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                egui::Grid::new("new game grid")
-                    .num_columns(2)
-                    .show(ui, |ui| {
-                        ui.label(RichText::new("Game Name:").strong().size(15.5));
-                        ui.label("Placeholder");
-                        ui.end_row();
-                    });
-            });
+        egui::panel::CentralPanel::default().show(ctx, |ui| {
+           ui.vertical_centered_justified(|ui| {
+                egui::Grid::new("New game grid")
+                .num_columns(2)
+                .show(ui, |ui| {
+                    ui.label("Executable Path");
+
+                });
+           });
         });
     }
 }
