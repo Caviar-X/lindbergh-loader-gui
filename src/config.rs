@@ -1,11 +1,11 @@
 use eframe::egui;
-use std::path::PathBuf;
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum GameRegion {
     JP,
     US,
-    EX
+    EX,
 }
+#[derive(Debug, PartialEq, Eq)]
 pub enum GpuType {
     AutoDetect = 0,
     Nvidia = 1,
@@ -14,22 +14,24 @@ pub enum GpuType {
     Intel = 4,
     Unknown = 5,
 }
+#[derive(Debug, PartialEq, Eq)]
 pub enum LindberghColor {
     YELLOW,
     RED,
     BLUE,
     SILVER,
-    REDEX
+    REDEX,
 }
+#[derive(Debug, PartialEq, Eq)]
 pub enum PrimevalHuntMode {
     NoTouchScreen = 1,
     SideBySide = 2,
     TouchScreenRight = 3,
-    TouchScreenBottom = 4
+    TouchScreenBottom = 4,
 }
 impl ToString for GameRegion {
     fn to_string(&self) -> String {
-        format!("{:?}",self)
+        format!("{:?}", self)
     }
 }
 
@@ -59,21 +61,26 @@ pub struct _EvdevInput {
     pub analogue1: String,
     pub analogue2: String,
     pub analogue3: String,
-    pub analogue4: String
+    pub analogue4: String,
 }
 pub type SdlKeymap = _Keymap<egui::Key>;
 pub type EvdevKeymap = _Keymap<String>;
-
 
 pub enum Keymap {
     // SDL/X11 input does not support second player
     Sdl(_Keymap<egui::Key>),
     Evdev(_EvdevInput),
-    Both {sdl_input: _Keymap<egui::Key>,evdev_input: _EvdevInput}
+    Both {
+        sdl_input: _Keymap<egui::Key>,
+        evdev_input: _EvdevInput,
+    },
 }
 impl Default for Keymap {
     fn default() -> Self {
-        Keymap::Both { sdl_input: SdlKeymap::default(), evdev_input: _EvdevInput::default()}
+        Keymap::Both {
+            sdl_input: SdlKeymap::default(),
+            evdev_input: _EvdevInput::default(),
+        }
     }
 }
 impl Default for SdlKeymap {
@@ -90,7 +97,7 @@ impl Default for SdlKeymap {
             button1: egui::Key::Q,
             button2: egui::Key::W,
             button3: egui::Key::E,
-            button4:  egui::Key::R,
+            button4: egui::Key::R,
             button5: None,
             button6: None,
             button7: None,
@@ -116,7 +123,7 @@ impl Default for EvdevKeymap {
             button5: Some("AT_TRANSLATED_SET_2_KEYBOARD_KEY_Y".into()),
             button6: Some("AT_TRANSLATED_SET_2_KEYBOARD_KEY_U".into()),
             button7: Some("AT_TRANSLATED_SET_2_KEYBOARD_KEY_I".into()),
-            button8: Some("AT_TRANSLATED_SET_2_KEYBOARD_KEY_O".into())
+            button8: Some("AT_TRANSLATED_SET_2_KEYBOARD_KEY_O".into()),
         }
     }
 }
@@ -128,7 +135,7 @@ impl Default for _EvdevInput {
             analogue3: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Z".into(),
             analogue4: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_RZ".into(),
             player1: EvdevKeymap::default(),
-            player2: EvdevKeymap::default()
+            player2: EvdevKeymap::default(),
         }
     }
 }
@@ -143,38 +150,38 @@ impl Default for _EvdevInput {
  *      serial_port2 -> motionboard
  */
 pub struct LindberghConfig {
-    exe_path: PathBuf,
+    pub exe_path: String,
     // Display width,height
-    window_size : (u32,u32),
-    fullscreen: bool,
-    disable_sdl: bool,
-    game_region: GameRegion,
-    freeplay: bool,
-    input_method: Keymap,
+    pub window_size: (u32, u32),
+    pub fullscreen: bool,
+    pub disable_sdl: bool,
+    pub game_region: GameRegion,
+    pub freeplay: bool,
+    pub input_method: Keymap,
     // if this is none,jvs will be emulated
-    jvs_path: Option<PathBuf>,
+    pub jvs_path: Option<String>,
     // if this is none,rideboard,driveboard or motionboard will be emulated
-    serial_port1: Option<PathBuf>,
-    serial_port2: Option<PathBuf>,
-    sram_path: Option<PathBuf>,
-    eeprom_path: Option<PathBuf>,
-    gpu_vendor: GpuType,
-    debug_message: bool,
-    hammer_flicker_fix: bool,
-    keep_aspect_ratio: bool,
-    outrun_lens_glare_enable: bool,
+    pub serial_port1: Option<String>,
+    pub serial_port2: Option<String>,
+    pub sram_path: Option<String>,
+    pub eeprom_path: Option<String>,
+    pub gpu_vendor: GpuType,
+    pub debug_message: bool,
+    pub hammer_flicker_fix: bool,
+    pub keep_aspect_ratio: bool,
+    pub outrun_lens_glare_enable: bool,
     //if this is none,fps_limiter should be 0
-    limit_fps_target: Option<bool>,
-    lets_go_jungle_render_with_mesa: bool,
-    primevalhunt_mode: Option<PrimevalHuntMode>,
-    lindbergh_color: LindberghColor
+    pub limit_fps_target: Option<u32>,
+    pub lets_go_jungle_render_with_mesa: bool,
+    pub primevalhunt_mode: Option<PrimevalHuntMode>,
+    pub lindbergh_color: LindberghColor,
 }
 
 impl Default for LindberghConfig {
     fn default() -> Self {
         Self {
-            exe_path: PathBuf::new(),
-            window_size: (640,480),
+            exe_path: String::new(),
+            window_size: (640, 480),
             fullscreen: false,
             freeplay: false,
             disable_sdl: false,
@@ -193,7 +200,7 @@ impl Default for LindberghConfig {
             limit_fps_target: None,
             lets_go_jungle_render_with_mesa: false,
             primevalhunt_mode: None,
-            lindbergh_color: LindberghColor::YELLOW
+            lindbergh_color: LindberghColor::YELLOW,
         }
     }
 }

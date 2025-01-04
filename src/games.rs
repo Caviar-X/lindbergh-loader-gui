@@ -1,6 +1,7 @@
-use std::{fmt::Debug, process::Command};
 use crate::config::LindberghConfig;
+use std::{fmt::Debug, process::Command};
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum GameType {
     SHOOTING,
     DRIVING,
@@ -9,7 +10,6 @@ pub enum GameType {
     VT3,
     ABC,
 }
-
 
 pub struct GameData {
     pub game_type: Option<GameType>,
@@ -20,7 +20,20 @@ pub struct GameData {
     // true = Working false = Not working/Unkown
     pub game_status: bool,
     pub config: LindberghConfig,
+}
 
+impl PartialEq for GameData {
+    fn eq(&self, other: &Self) -> bool {
+        self.not_working_on_ati == other.not_working_on_ati
+            && self.game_type == other.game_type
+            && self.game_title == other.game_title
+            && self.game_id == other.game_id
+            && self.game_dvp == other.game_dvp
+            && self.game_status == other.game_status
+    }
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
 }
 impl Default for GameData {
     fn default() -> Self {
@@ -31,8 +44,19 @@ impl Default for GameData {
             game_id: "Unkown".into(),
             game_dvp: "DVP-XXXX".into(),
             game_status: false,
-            config: LindberghConfig::default()
+            config: LindberghConfig::default(),
         }
+    }
+}
+impl GameData {
+    pub fn assign_title(&mut self, title: GameTitle) {
+        let assign_data: GameData = title.into();
+        self.game_type = assign_data.game_type;
+        self.not_working_on_ati = assign_data.not_working_on_ati;
+        self.game_title = assign_data.game_title;
+        self.game_id = assign_data.game_id;
+        self.game_dvp = assign_data.game_dvp;
+        self.game_status = assign_data.game_status;
     }
 }
 // Those variable names will be used to generate pretty names
@@ -427,6 +451,47 @@ impl Into<GameData> for GameTitle {
         }
     }
 }
+impl GameTitle {
+    pub const fn all_variants() -> &'static [GameTitle] {
+        &[
+            GameTitle::After_Burner_Climax,
+            GameTitle::After_Burner_Climax_SDX,
+            GameTitle::After_Burner_Climax_SE,
+            GameTitle::Ghost_Squad_Evolution,
+            GameTitle::Harley_Davidson,
+            GameTitle::Hummer,
+            GameTitle::Hummer_SDLX,
+            GameTitle::Hummer_Extreme,
+            GameTitle::Hummer_Extreme_MDX,
+            GameTitle::InitialD_4,
+            GameTitle::InitalD_4_Export,
+            GameTitle::InitialD_5_Japan,
+            GameTitle::InitalD_5_Export_Ver_2,
+            GameTitle::InitalD_5_Export_Ver_4,
+            GameTitle::Lets_Go_Jungle,
+            GameTitle::Lets_Go_Jungle_Special,
+            GameTitle::Outrun_2_SP_SDX,
+            GameTitle::Primeval_Hunt,
+            GameTitle::Rambo,
+            GameTitle::Rambo_China,
+            GameTitle::R_Tuned,
+            GameTitle::Segaboot,
+            GameTitle::Segaboot_2_4,
+            GameTitle::Segaboot_2_4_With_Symbols,
+            GameTitle::Segaboot_2_6,
+            GameTitle::Sega_Race_TV,
+            GameTitle::The_House_Of_The_Dead_4,
+            GameTitle::The_House_Of_The_Dead_4_Special,
+            GameTitle::The_House_Of_The_Dead_EX,
+            GameTitle::Too_Spicy,
+            GameTitle::Virtua_Fighter_5,
+            GameTitle::Virtua_Fighter_5_Export,
+            GameTitle::Virtua_Fighter_5_Final_Showdown,
+            GameTitle::Virtua_Fighter_5_R,
+            GameTitle::Virtua_Tennis_3,
+        ]
+    }
+}
 impl ToString for GameTitle {
     fn to_string(&self) -> String {
         format!("{:?}", self).replace("_", " ")
@@ -437,4 +502,3 @@ impl Into<GameTitle> for GameData {
         GameTitle::from(self.game_title)
     }
 }
-

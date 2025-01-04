@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "*"
+eframe = "0.30.0"
 egui_extras = { version = "*", features = ["all_loaders","image"] }
 env_logger = { version = "*", features = ["auto-color","humantime"] }
 log = "*"
+egui_alignments = {git = "https://ghgo.xyz/github.com/a-littlebit/egui_alignments.git"}
+rfd = "0.15.2"
