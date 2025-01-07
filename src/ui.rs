@@ -1,5 +1,5 @@
-use crate::config::{LindberghConfig, SdlKeymap};
-use crate::games::{GameData, GameTitle};
+use crate::config::{GameRegion, GpuType, LindberghConfig, SdlKeymap};
+use crate::games::{GameData, GameTitle, GameType};
 use eframe::egui::{self, Align, Button, Color32, Label, Layout, Margin, Modal, RichText, Spacing};
 use rfd::FileDialog;
 use std::path::PathBuf;
@@ -30,13 +30,6 @@ impl Default for AppState {
 pub struct SharedState {
     pub new_game_modify: i32,
     pub shared_text: Vec<String>,
-}
-impl SharedState {
-    pub fn assign_default_lindbergh_config(&mut self, config: &LindberghConfig) {
-        self.shared_text[0] = config.exe_path.to_string();
-        self.shared_text[1] = config.window_size.0.to_string();
-        self.shared_text[2] = config.window_size.1.to_string();
-    }
 }
 impl Default for SharedState {
     fn default() -> Self {
@@ -72,6 +65,18 @@ impl LoaderApp {
             data: data.into(),
             status,
         });
+    }
+    fn get_game(&self) -> &GameData {
+        &self.game_library[self.shared_state.new_game_modify as usize]
+    }
+    fn get_game_mut(&mut self) -> &mut GameData {
+        &mut self.game_library[self.shared_state.new_game_modify as usize]
+    }
+    fn get_config(&self) -> &LindberghConfig {
+        &self.get_game().config
+    }
+    fn get_config_mut(&mut self) -> &mut LindberghConfig {
+        &mut self.get_game_mut().config
     }
     fn modal_update(&mut self, ctx: &egui::Context) {
         if self.modal.is_some() {
@@ -287,7 +292,7 @@ impl LoaderApp {
                                             )
                                             .clicked()
                                         {
-                                            self.current_game = GameTitle::from(&i.game_title);
+                                            self.current_game = GameTitle::from(i);
                                         }
                                         ui.end_row();
                                     }
@@ -325,7 +330,7 @@ impl LoaderApp {
                             if !self
                                 .game_library
                                 .iter()
-                                .map(|x| GameTitle::from(&x.game_title))
+                                .map(|x| GameTitle::from(x))
                                 .collect::<Vec<GameTitle>>()
                                 .contains(&i)
                             {
@@ -347,7 +352,7 @@ impl LoaderApp {
                             && !self
                                 .game_library
                                 .iter()
-                                .map(|x| GameTitle::from(&x.game_title))
+                                .map(|x| GameTitle::from(x))
                                 .collect::<Vec<GameTitle>>()
                                 .contains(&self.current_game)
                         {
@@ -361,7 +366,7 @@ impl LoaderApp {
     }
     fn configure_game_ui(&mut self, ctx: &egui::Context) {
         for (cnt, i) in self.game_library.iter().enumerate() {
-            if GameTitle::from(&i.game_title) == self.current_game {
+            if GameTitle::from(i) == self.current_game {
                 self.shared_state.new_game_modify = cnt as i32;
             }
         }
@@ -378,71 +383,204 @@ impl LoaderApp {
                 ui.heading(RichText::new("Configure Game").size(35.0).strong());
             });
             ui.separator();
-            egui_alignments::top_horizontal_wrapped(ui, |ui| {
-                egui::Grid::new("configure game grid").show(ui, |ui| {
-                    ui.label("Executable Path:");
-                    if ui.small_button("📁").clicked() {
-                        if let Some(path) = FileDialog::new()
-                            .add_filter("Executable File", &["elf", ""])
-                            .pick_file()
-                        {
-                            self.shared_state.shared_text[0] = path.to_string_lossy().to_string();
-                        }
-                    }
-                    ui.end_row();
-                    ui.spacing_mut().item_spacing.x = Spacing::default().item_spacing.x;
-                    ui.label("Window size preset:");
-                    egui::ComboBox::from_id_salt("confgame combobox")
-                        .width(50.0)
-                        .selected_text(format!(
-                            "{}x{}",
-                            self.game_library[self.shared_state.new_game_modify as usize]
-                                .config
-                                .window_size
-                                .0,
-                            self.game_library[self.shared_state.new_game_modify as usize]
-                                .config
-                                .window_size
-                                .1
-                        ))
-                        .show_ui(ui, |ui| {
-                            for i in [
-                                (640, 480),
-                                (800, 600),
-                                (1024, 768),
-                                (1280, 1024),
-                                (800, 480),
-                                (1024, 600),
-                                (1280, 768),
-                                (1360, 768),
-                            ] {
-                                ui.selectable_value(
-                                    &mut self.game_library
-                                        [self.shared_state.new_game_modify as usize]
-                                        .config
-                                        .window_size,
-                                    i,
-                                    format!("{}x{}", i.0, i.1),
-                                );
+            egui::ScrollArea::vertical()
+                .id_salt("Configure Game ScrollArea")
+                .show(ui, |ui| {
+                    egui_alignments::top_horizontal_wrapped(ui, |ui| {
+                        egui::Grid::new("configure game grid").show(ui, |ui| {
+                            ui.label("Executable Path:");
+                            if self.shared_state.shared_text[0].is_empty() {
+                            } else if self.shared_state.shared_text[0].len() > 40 {
+                                ui.label(format!(
+                                    "{}..",
+                                    &(self.shared_state.shared_text[0])
+                                        .chars()
+                                        .take(48)
+                                        .collect::<String>()
+                                ));
+                            } else {
+                                ui.label(&self.shared_state.shared_text[0]);
                             }
+                            if ui.small_button("📁").clicked() {
+                                if let Some(path) = FileDialog::new()
+                                    .add_filter("Executable File", &["elf", ""])
+                                    .pick_file()
+                                {
+                                    self.shared_state.shared_text[0] =
+                                        path.to_string_lossy().to_string();
+                                }
+                            }
+                            ui.end_row();
+                            ui.label("Window Size");
+                            ui.label("(The size will follow the custom's by default)");
+                            ui.end_row();
+                            ui.label("Preset:");
+                            egui::ComboBox::from_id_salt("window size combobox")
+                                .width(50.0)
+                                .selected_text(format!(
+                                    "{}x{}",
+                                    self.get_game().config.window_size.0,
+                                    self.get_game().config.window_size.1
+                                ))
+                                .show_ui(ui, |ui| {
+                                    for i in [
+                                        (640, 480),
+                                        (800, 600),
+                                        (1024, 768),
+                                        (1280, 1024),
+                                        (800, 480),
+                                        (1024, 600),
+                                        (1280, 768),
+                                        (1360, 768),
+                                    ] {
+                                        ui.selectable_value(
+                                            &mut self.get_config_mut().window_size,
+                                            i,
+                                            format!("{}x{}", i.0, i.1),
+                                        );
+                                    }
+                                });
+                            ui.end_row();
+                            ui.label("Custom width:");
+                            ui.text_edit_singleline(&mut self.shared_state.shared_text[1]);
+                            ui.end_row();
+                            ui.label("Custom Height:");
+                            ui.text_edit_singleline(&mut self.shared_state.shared_text[2]);
+                            ui.end_row();
+                            ui.label("Fullscreen:");
+                            ui.checkbox(&mut self.get_config_mut().fullscreen, "");
+                            ui.end_row();
+                            ui.label("Disable SDL");
+                            ui.checkbox(&mut self.get_config_mut().disable_sdl, "");
+                            ui.end_row();
+                            ui.label("Reigon:");
+                            egui::ComboBox::from_id_salt("reigon combobox")
+                                .selected_text(self.get_config().game_region.to_string())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.get_config_mut().game_region,
+                                        GameRegion::JP,
+                                        "JP",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.get_config_mut().game_region,
+                                        GameRegion::US,
+                                        "US",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.get_config_mut().game_region,
+                                        GameRegion::EX,
+                                        "EX",
+                                    );
+                                });
+                            ui.end_row();
+                            ui.label("Freeplay:");
+                            ui.checkbox(&mut self.get_config_mut().freeplay, "");
+                            ui.end_row();
+                            ui.label("Emulate JVS");
+                            ui.checkbox(&mut self.get_config_mut().emulate_jvs, "");
+                            ui.end_row();
+                            if !self.get_config().emulate_jvs {
+                                ui.label("Enter serial port:");
+                                ui.text_edit_singleline(&mut self.get_config_mut().jvs_path);
+                                ui.end_row();
+                            }
+                            if GameTitle::from(self.get_game()) == GameTitle::Lets_Go_Jungle_Special
+                                || GameTitle::from(self.get_game())
+                                    == GameTitle::The_House_Of_The_Dead_4_Special
+                            {
+                                ui.label("Emulate Rideboard:");
+                                ui.checkbox(&mut self.get_config_mut().emulate_rideboard, "");
+                                if !self.get_config().emulate_rideboard {
+                                    ui.end_row();
+                                    ui.label("Enter serial port:");
+                                    ui.text_edit_singleline(
+                                        &mut self.get_config_mut().serial_port1,
+                                    );
+                                }
+                                ui.end_row();
+                            }
+                            if self.get_game().game_type == Some(GameType::DRIVING) {
+                                ui.label("Emulate driveboard:");
+                                ui.checkbox(&mut self.get_config_mut().emulate_driveboard, "");
+                                if !self.get_config().emulate_driveboard {
+                                    ui.end_row();
+                                    ui.label("Enter serial port:");
+                                    ui.text_edit_singleline(
+                                        &mut self.get_config_mut().serial_port1,
+                                    );
+                                }
+                                ui.end_row();
+                            }
+                            if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
+                                ui.label("Emulate motionboard:");
+                                ui.checkbox(&mut self.get_config_mut().emulate_motionboard, "");
+                                if !self.get_config().emulate_motionboard {
+                                    ui.end_row();
+                                    ui.label("Enter serial port:");
+                                    ui.text_edit_singleline(
+                                        &mut self.get_config_mut().serial_port2,
+                                    );
+                                }
+                                ui.end_row();
+                            }
+                            ui.label("SRAM path:");
+                            ui.text_edit_singleline(&mut self.get_config_mut().sram_path);
+                            ui.end_row();
+                            ui.label("EEPROM path:");
+                            ui.text_edit_singleline(&mut self.get_config_mut().sram_path);
+                            ui.end_row();
+                            ui.label("GPU Vendor:");
+                            egui::ComboBox::from_id_salt("gpuv cbb")
+                                .selected_text(self.get_config().gpu_vendor.to_string())
+                                .show_ui(ui, |ui| {
+                                    for i in [
+                                        GpuType::AMD,
+                                        GpuType::ATI,
+                                        GpuType::Intel,
+                                        GpuType::Nvidia,
+                                        GpuType::AutoDetect,
+                                        GpuType::Unknown,
+                                    ] {
+                                        ui.selectable_value(
+                                            &mut self.get_config_mut().gpu_vendor,
+                                            i.clone(),
+                                            i.clone().to_string(),
+                                        );
+                                    }
+                                });
+                            ui.end_row();
+                            ui.label("Show debug message");
+                            ui.checkbox(&mut self.get_config_mut().debug_message, "");
+                            ui.end_row();
+                            if GameTitle::from(self.get_game()) == GameTitle::Hummer
+                                || GameTitle::from(self.get_game()) == GameTitle::Hummer_Extreme
+                                || GameTitle::from(self.get_game()) == GameTitle::Hummer_Extreme_MDX
+                            {
+                                ui.label("Hummer Flicker Fix:");
+                                ui.checkbox(&mut self.get_config_mut().hammer_flicker_fix, "");
+                                ui.end_row();
+                            }
+                            ui.label("Keep aspect ratio:");
+                            ui.checkbox(&mut self.get_config_mut().keep_aspect_ratio, "");
+                            ui.end_row();
+                            if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
+                                ui.label("Glare effect:");
+                                ui.checkbox(&mut self.get_config_mut().outrun_lens_glare_enable, "");
+                                ui.end_row();
+                            }
+                            ui.label("Enable FPS limiter:");
+                            ui.checkbox(&mut self.get_config_mut().enable_fps_limiter, "");
+                            ui.end_row();
+                            if self.get_config().enable_fps_limiter {
+                                ui.label("FPS limit:");
+                                ui.text_edit_singleline(&mut self.shared_state.shared_text[3]);
+                                ui.end_row();
+                            }
+                            
                         });
-                    ui.end_row();
-                    ui.label("Or customize it.");
-                    ui.end_row();
-                    ui.label("The size will follow custom's by default.");
-                    ui.end_row();
-                    ui.label("Window width:");
-                    ui.text_edit_singleline(&mut self.shared_state.shared_text[1]);
-
-                    ui.end_row();
-                    ui.label("Window Height:");
-                    ui.text_edit_singleline(&mut self.shared_state.shared_text[2]);
-                    ui.end_row();
-
-                    ui.end_row();
-
+                    });
                 });
-            });
         });
     }
 }

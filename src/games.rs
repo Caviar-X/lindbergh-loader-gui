@@ -7,7 +7,7 @@ pub enum GameType {
     DRIVING,
     HARLEY,
     FIGHTING,
-    VT3,
+    MAHJONG,
     ABC,
 }
 
@@ -60,7 +60,7 @@ impl GameData {
     }
 }
 // Those variable names will be used to generate pretty names
-// We do not care about revs
+// We do not care about revs (for now?)
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GameTitle {
@@ -139,11 +139,18 @@ pub enum GameTitle {
     // Virtua_Tennis_3_Rev_B_Test,
     // Virtua_Tennis_3_Rev_C,
     // Virtua_Tennis_3_Rev_C_Test,
+    Taisen_Mahjong_4,
+    Taisen_Mahjong_4_Evolution,
     Unknown,
 }
 impl Default for GameTitle {
     fn default() -> Self {
         Self::Unknown
+    }
+}
+impl From<&GameData> for GameTitle {
+    fn from(value: &GameData) -> Self {
+        Self::from(&value.game_title)
     }
 }
 impl<T: Into<String>> From<T> for GameTitle {
@@ -189,6 +196,8 @@ impl<T: Into<String>> From<T> for GameTitle {
             "Virtua Fighter 5 Export" => GameTitle::Virtua_Fighter_5_Export,
             "Virtua Fighter 5 Final Showdown" => GameTitle::Virtua_Fighter_5_Final_Showdown,
             "Virtua Fighter 5 R" => GameTitle::Virtua_Fighter_5_R,
+            "Taisen Mahjong 4" | "SEGA Network Taisen Mahjong MJ4" => GameTitle::Taisen_Mahjong_4,
+            "Taisen Mahjong 4 Evolution" | "SEGA Network Taisen Mahjong MJ4 Evolution" => GameTitle::Taisen_Mahjong_4_Evolution,
             _ => GameTitle::Unknown,
         }
     }
@@ -362,7 +371,7 @@ impl Into<GameData> for GameTitle {
                 game_title: self.to_string(),
                 game_dvp: "DVP-0005".into(),
                 game_id: "SBKX".into(),
-                game_type: Some(GameType::VT3),
+                game_type: Some(GameType::FIGHTING),
                 game_status: true,
                 ..Default::default()
             },
@@ -447,6 +456,24 @@ impl Into<GameData> for GameTitle {
                 game_status: true,
                 ..Default::default()
             },
+            Self::Taisen_Mahjong_4 => GameData {
+                game_title: "SEGA Network Taisen Mahjong MJ4".into(),
+                game_dvp: "DVP-0049G".into(),
+                game_id: "SBPN".into(),
+                game_status: true,
+                game_type: Some(GameType::MAHJONG),
+                not_working_on_ati: false,
+                ..Default::default()
+            },
+            Self::Taisen_Mahjong_4_Evolution => GameData {
+                game_title: "SEGA Network Taisen Mahjong MJ4 Evolution".into(),
+                game_dvp: "DVP-0081".into(),
+                game_id: "SBTA".into(),
+                game_status: true,
+                game_type: Some(GameType::MAHJONG),
+                not_working_on_ati: false,
+                ..Default::default()
+            },
             _ => GameData::default(),
         }
     }
@@ -489,6 +516,8 @@ impl GameTitle {
             GameTitle::Virtua_Fighter_5_Final_Showdown,
             GameTitle::Virtua_Fighter_5_R,
             GameTitle::Virtua_Tennis_3,
+            GameTitle::Taisen_Mahjong_4,
+            GameTitle::Taisen_Mahjong_4_Evolution
         ]
     }
 }

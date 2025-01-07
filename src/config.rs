@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use eframe::egui;
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameRegion {
@@ -5,7 +7,12 @@ pub enum GameRegion {
     US,
     EX,
 }
-#[derive(Debug, PartialEq, Eq)]
+impl Display for GameRegion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GpuType {
     AutoDetect = 0,
     Nvidia = 1,
@@ -13,6 +20,11 @@ pub enum GpuType {
     ATI = 3,
     Intel = 4,
     Unknown = 5,
+}
+impl Display for GpuType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum LindberghColor {
@@ -28,11 +40,6 @@ pub enum PrimevalHuntMode {
     SideBySide = 2,
     TouchScreenRight = 3,
     TouchScreenBottom = 4,
-}
-impl ToString for GameRegion {
-    fn to_string(&self) -> String {
-        format!("{:?}", self)
-    }
 }
 
 // WARNING: Do not directly use this type
@@ -159,19 +166,23 @@ pub struct LindberghConfig {
     pub freeplay: bool,
     pub input_method: Keymap,
     // if this is none,jvs will be emulated
-    pub jvs_path: Option<String>,
+    pub jvs_path: String,
+    pub emulate_jvs: bool,
     // if this is none,rideboard,driveboard or motionboard will be emulated
-    pub serial_port1: Option<String>,
-    pub serial_port2: Option<String>,
-    pub sram_path: Option<String>,
-    pub eeprom_path: Option<String>,
+    pub serial_port1: String,
+    pub emulate_rideboard: bool,
+    pub emulate_motionboard: bool,
+    pub emulate_driveboard: bool,
+    pub serial_port2: String,
+    pub sram_path: String,
+    pub eeprom_path: String,
     pub gpu_vendor: GpuType,
     pub debug_message: bool,
     pub hammer_flicker_fix: bool,
     pub keep_aspect_ratio: bool,
     pub outrun_lens_glare_enable: bool,
-    //if this is none,fps_limiter should be 0
-    pub limit_fps_target: Option<u32>,
+    pub enable_fps_limiter: bool,
+    pub limit_fps_target: u32,
     pub lets_go_jungle_render_with_mesa: bool,
     pub primevalhunt_mode: Option<PrimevalHuntMode>,
     pub lindbergh_color: LindberghColor,
@@ -187,17 +198,22 @@ impl Default for LindberghConfig {
             disable_sdl: false,
             input_method: Keymap::default(),
             game_region: GameRegion::JP,
-            jvs_path: None,
-            serial_port1: None,
-            serial_port2: None,
-            sram_path: None,
-            eeprom_path: None,
+            jvs_path: "/dev/ttyUSB0".into(),
+            emulate_jvs: true,
+            serial_port1: "/dev/ttyS0".into(),
+            serial_port2: "/dev/ttyS1".into(),
+            emulate_motionboard: true,
+            emulate_rideboard: true,
+            emulate_driveboard: true,
+            sram_path: "sram.bin".into(),
+            eeprom_path: "eeprom.bin".into(),
             gpu_vendor: GpuType::AutoDetect,
             debug_message: false,
             hammer_flicker_fix: false,
             keep_aspect_ratio: false,
             outrun_lens_glare_enable: false,
-            limit_fps_target: None,
+            enable_fps_limiter: false,
+            limit_fps_target: 60,
             lets_go_jungle_render_with_mesa: false,
             primevalhunt_mode: None,
             lindbergh_color: LindberghColor::YELLOW,
