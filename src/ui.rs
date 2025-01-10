@@ -1,6 +1,6 @@
-use crate::config::{GameRegion, GpuType, LindberghConfig, SdlKeymap};
+use crate::config::{GameRegion, GpuType, LindberghColor, LindberghConfig, SdlKeymap};
 use crate::games::{GameData, GameTitle, GameType};
-use eframe::egui::{self, Align, Button, Color32, Label, Layout, Margin, Modal, RichText, Spacing};
+use eframe::egui::{self, Align, Button, Color32, Key, Label, Layout, Margin, Modal, RichText, Spacing};
 use rfd::FileDialog;
 use std::path::PathBuf;
 enum AppState {
@@ -344,9 +344,8 @@ impl LoaderApp {
                     });
             });
             egui::TopBottomPanel::bottom("new game bottom panel")
-                .show_separator_line(false)
                 .show(ctx, |ui| {
-                    ui.vertical_centered(|ui| {
+                    egui_alignments::center_horizontal(ui,|ui| {
                         if ui.button("Save").clicked()
                             && self.current_game != GameTitle::Unknown
                             && !self
@@ -357,6 +356,12 @@ impl LoaderApp {
                                 .contains(&self.current_game)
                         {
                             self.game_library[modf_pos].assign_title(self.current_game.clone());
+                            self.shared_state.new_game_modify = -1;
+                            self.app_state = AppState::MainPage;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.game_library.remove(modf_pos);
+                            self.current_game = GameTitle::Unknown;
                             self.shared_state.new_game_modify = -1;
                             self.app_state = AppState::MainPage;
                         }
@@ -528,7 +533,7 @@ impl LoaderApp {
                             ui.text_edit_singleline(&mut self.get_config_mut().sram_path);
                             ui.end_row();
                             ui.label("EEPROM path:");
-                            ui.text_edit_singleline(&mut self.get_config_mut().sram_path);
+                            ui.text_edit_singleline(&mut self.get_config_mut().eeprom_path);
                             ui.end_row();
                             ui.label("GPU Vendor:");
                             egui::ComboBox::from_id_salt("gpuv cbb")
@@ -566,7 +571,10 @@ impl LoaderApp {
                             ui.end_row();
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Glare effect:");
-                                ui.checkbox(&mut self.get_config_mut().outrun_lens_glare_enable, "");
+                                ui.checkbox(
+                                    &mut self.get_config_mut().outrun_lens_glare_enable,
+                                    "",
+                                );
                                 ui.end_row();
                             }
                             ui.label("Enable FPS limiter:");
@@ -577,10 +585,56 @@ impl LoaderApp {
                                 ui.text_edit_singleline(&mut self.shared_state.shared_text[3]);
                                 ui.end_row();
                             }
-                            
+                            if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
+                                ui.label("Skip cabinet check:");
+                                ui.checkbox(
+                                    &mut self.get_config_mut().skip_outrun_cabinet_check,
+                                    "",
+                                );
+                                ui.end_row();
+                            }
+                            ui.label("Lindbergh color:");
+                            egui::ComboBox::from_id_salt("color cbb")
+                                .selected_text(self.get_config().lindbergh_color.to_string())
+                                .show_ui(ui, |ui| {
+                                    for i in [
+                                        LindberghColor::BLUE,
+                                        LindberghColor::RED,
+                                        LindberghColor::REDEX,
+                                        LindberghColor::REDEX,
+                                        LindberghColor::SILVER,
+                                        LindberghColor::YELLOW,
+                                    ] {
+                                        ui.selectable_value(
+                                            &mut self.get_config_mut().lindbergh_color,
+                                            i.clone(),
+                                            i.clone().to_string(),
+                                        );
+                                    }
+                                });
                         });
                     });
                 });
+        });
+        egui::TopBottomPanel::bottom("config game btm panel").show(ctx, |ui| {
+            egui_alignments::center_horizontal(ui,|ui| {
+                    if ui.button("Save").clicked() {
+                       
+                        self.shared_state.new_game_modify = -1;
+                        self.shared_state.shared_text.clear();
+                        self.app_state = AppState::MainPage;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.shared_state.new_game_modify = -1;
+                        self.shared_state.shared_text.clear();
+                        self.app_state = AppState::MainPage;
+                    }
+            });
+        });
+    }
+    fn configure_mapping_ui(&mut self,ctx: &egui::Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            
         });
     }
 }
@@ -599,5 +653,192 @@ impl eframe::App for LoaderApp {
             }
             AppState::ConfigureMapping => {}
         }
+    }
+}
+
+// NOTE: F13~F35 will not be mapped because I don't know in which universe keyboard has these keys
+
+pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
+    let zero= key.name().chars().nth(0).unwrap();
+    if zero.is_numeric() {
+        if zero == '0' {
+            return Some(19);
+        } else {
+            return Some(((zero as u8) - 38) as u32);
+        }
+    }
+    if zero.is_alphabetic() && key.name().len() == 1 {
+        return match zero {
+            'Q' => Some(24),
+            'W' => Some(25),
+            'E' => Some(26),
+            'R' => Some(27),
+            'T' => Some(28),
+            'Y' => Some(29),
+            'U' => Some(30),
+            'I' => Some(31),
+            'O' => Some(32),
+            'P' => Some(33),
+            'A' => Some(38),
+            'S' => Some(39),
+            'D' => Some(40),
+            'F' => Some(41),
+            'G' => Some(42),
+            'H' => Some(43),
+            'J' => Some(44),
+            'K' => Some(45),
+            'L' => Some(46),
+            'Z' => Some(52),
+            'X' => Some(53),
+            'C' => Some(54),
+            'V' => Some(55),
+            'B' => Some(56),
+            'N' => Some(57),
+            'M' => Some(58),
+            _ => None, // If the character is not in the list
+        };
+    }
+    if zero == 'F' && key.name().len() > 1 {
+        return match key {
+            Key::F1 => Some(67),
+            Key::F2 => Some(68),
+            Key::F3 => Some(69),
+            Key::F4 => Some(70),
+            Key::F5 => Some(71),
+            Key::F6 => Some(72),
+            Key::F7 => Some(73),
+            Key::F8 => Some(74),
+            Key::F9 => Some(75),
+            Key::F10 => Some(76),
+            Key::F11 => Some(95),
+            Key::F12 => Some(96),
+            _ => None
+        };
+    }
+    return match key {
+        Key::Minus => Some(20),
+        Key::Equals => Some(21),
+        Key::Backspace => Some(22),
+        Key::Tab => Some(23),
+        Key::Semicolon => Some(47),
+        Key::Quote => Some(48),
+        Key::Backtick => Some(49),
+        Key::Backslash => Some(51),
+        Key::Comma => Some(59),
+        Key::Period => Some(60),
+        Key::Slash => Some(61),
+        Key::Space => Some(65),
+        Key::Home => Some(110),
+        Key::ArrowUp => Some(111),
+        Key::PageUp => Some(112),
+        Key::ArrowLeft => Some(113),
+        Key::ArrowRight => Some(114),
+        Key::End => Some(115),
+        Key::ArrowDown => Some(116),
+        Key::PageDown => Some(117),
+        Key::Insert => Some(118),
+        Key::Delete => Some(119),
+        Key::Escape => Some(9),
+        Key::Enter => Some(36),
+        Key::Colon => Some(47),
+        Key::Plus => Some(21),
+        Key::OpenBracket => Some(34),
+        Key::CloseBracket => Some(35),
+        Key::Pipe => Some(51),
+        Key::Questionmark => Some(61),
+        Key::Copy => Some(141),
+        Key::Paste => Some(144),
+        Key::Cut => Some(145),
+        _ => None
+    };
+}
+// Thanks chatgpt
+pub fn egui_keycode_to_key(keycode: u32) -> Option<egui::Key> {
+    match keycode {
+        // Numeric keys
+        19 => Some(Key::Num0),
+        10 => Some(Key::Num1),
+        11 => Some(Key::Num2),
+        12 => Some(Key::Num3),
+        13 => Some(Key::Num4),
+        14 => Some(Key::Num5),
+        15 => Some(Key::Num6),
+        16 => Some(Key::Num7),
+        17 => Some(Key::Num8),
+        18 => Some(Key::Num9),
+        20 => Some(Key::Minus),
+        21 => Some(Key::Equals),
+        // Alphabetic keys
+        24 => Some(Key::Q),
+        25 => Some(Key::W),
+        26 => Some(Key::E),
+        27 => Some(Key::R),
+        28 => Some(Key::T),
+        29 => Some(Key::Y),
+        30 => Some(Key::U),
+        31 => Some(Key::I),
+        32 => Some(Key::O),
+        33 => Some(Key::P),
+        38 => Some(Key::A),
+        39 => Some(Key::S),
+        40 => Some(Key::D),
+        41 => Some(Key::F),
+        42 => Some(Key::G),
+        43 => Some(Key::H),
+        44 => Some(Key::J),
+        45 => Some(Key::K),
+        46 => Some(Key::L),
+        52 => Some(Key::Z),
+        53 => Some(Key::X),
+        54 => Some(Key::C),
+        55 => Some(Key::V),
+        56 => Some(Key::B),
+        57 => Some(Key::N),
+        58 => Some(Key::M),
+        // Function keys
+        67 => Some(Key::F1),
+        68 => Some(Key::F2),
+        69 => Some(Key::F3),
+        70 => Some(Key::F4),
+        71 => Some(Key::F5),
+        72 => Some(Key::F6),
+        73 => Some(Key::F7),
+        74 => Some(Key::F8),
+        75 => Some(Key::F9),
+        76 => Some(Key::F10),
+        95 => Some(Key::F11),
+        96 => Some(Key::F12),
+        // Punctuation keys
+        34 => Some(Key::OpenBracket),
+        35 => Some(Key::CloseBracket),
+        47 => Some(Key::Semicolon),
+        48 => Some(Key::Quote),
+        49 => Some(Key::Backtick),
+        51 => Some(Key::Backslash),
+        59 => Some(Key::Comma),
+        60 => Some(Key::Period),
+        61 => Some(Key::Slash),
+        65 => Some(Key::Space),
+        // Navigation keys
+        9 => Some(Key::Escape),
+        22 => Some(Key::Backspace),
+        23 => Some(Key::Tab),
+        36 => Some(Key::Enter),
+        110 => Some(Key::Home),
+        111 => Some(Key::ArrowUp),
+        112 => Some(Key::PageUp),
+        113 => Some(Key::ArrowLeft),
+        114 => Some(Key::ArrowRight),
+        115 => Some(Key::End),
+        116 => Some(Key::ArrowDown),
+        117 => Some(Key::PageDown),
+        118 => Some(Key::Insert),
+        119 => Some(Key::Delete),
+        // Clipboard actions
+        141 => Some(Key::Copy),
+        144 => Some(Key::Paste),
+        145 => Some(Key::Cut),
+        // Default case
+        _ => None,
     }
 }

@@ -1,5 +1,5 @@
 use eframe::egui;
-use loader_gui::{games::GameTitle, ui::LoaderApp};
+use loader_gui::{games::GameTitle, ui::{egui_key_to_keycode, egui_keycode_to_key, LoaderApp}};
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/default.png")).unwrap();

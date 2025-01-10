@@ -197,7 +197,9 @@ impl<T: Into<String>> From<T> for GameTitle {
             "Virtua Fighter 5 Final Showdown" => GameTitle::Virtua_Fighter_5_Final_Showdown,
             "Virtua Fighter 5 R" => GameTitle::Virtua_Fighter_5_R,
             "Taisen Mahjong 4" | "SEGA Network Taisen Mahjong MJ4" => GameTitle::Taisen_Mahjong_4,
-            "Taisen Mahjong 4 Evolution" | "SEGA Network Taisen Mahjong MJ4 Evolution" => GameTitle::Taisen_Mahjong_4_Evolution,
+            "Taisen Mahjong 4 Evolution" | "SEGA Network Taisen Mahjong MJ4 Evolution" => {
+                GameTitle::Taisen_Mahjong_4_Evolution
+            }
             _ => GameTitle::Unknown,
         }
     }
@@ -517,7 +519,7 @@ impl GameTitle {
             GameTitle::Virtua_Fighter_5_R,
             GameTitle::Virtua_Tennis_3,
             GameTitle::Taisen_Mahjong_4,
-            GameTitle::Taisen_Mahjong_4_Evolution
+            GameTitle::Taisen_Mahjong_4_Evolution,
         ]
     }
 }

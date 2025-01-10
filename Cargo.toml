@@ -8,6 +8,6 @@ eframe = "0.30.0"
 egui_extras = { version = "*", features = ["all_loaders","image"] }
 env_logger = { version = "*", features = ["auto-color","humantime"] }
 log = "*"
-# TODO: Adjust this proxy shit in release!!!
+# FIXME: Adjust this proxy shit in release!!!
 egui_alignments = {git = "https://ghgo.xyz/github.com/a-littlebit/egui_alignments.git"}
 rfd = "0.15.2"

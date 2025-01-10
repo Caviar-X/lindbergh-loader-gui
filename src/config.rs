@@ -1,6 +1,7 @@
-use std::fmt::Display;
-
+use std::{fmt::Display, fs::File, io::{self, Error, ErrorKind, Write}, path::Path};
 use eframe::egui;
+
+use crate::games::GameData;
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameRegion {
     JP,
@@ -26,13 +27,18 @@ impl Display for GpuType {
         write!(f, "{:?}", self)
     }
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LindberghColor {
     YELLOW,
     RED,
     BLUE,
     SILVER,
     REDEX,
+}
+impl Display for LindberghColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum PrimevalHuntMode {
@@ -62,17 +68,27 @@ pub struct _Keymap<T> {
     pub button7: Option<T>,
     pub button8: Option<T>,
 }
-pub struct _EvdevInput {
-    pub player1: _Keymap<String>,
-    pub player2: _Keymap<String>,
-    pub analogue1: String,
-    pub analogue2: String,
-    pub analogue3: String,
-    pub analogue4: String,
-}
+
 pub type SdlKeymap = _Keymap<egui::Key>;
 pub type EvdevKeymap = _Keymap<String>;
 
+pub struct _EvdevInput {
+    pub player1: EvdevKeymap,
+    pub player2: EvdevKeymap,
+    pub analogues: [String;4],
+    pub analogue_deadzones: [(u8,u8,u8);8]
+}
+impl _EvdevInput {
+    pub fn write_to_lindbergh_conf(&self,f: &mut File) -> std::result::Result<(),String> {
+        if self.player1.test.is_none() && self.player2.test.is_none() {
+            return Err("Unable to Find support key".into());
+        }
+        
+        Ok(())
+    }
+}
+
+// NOTE: Use this in other module only
 pub enum Keymap {
     // SDL/X11 input does not support second player
     Sdl(_Keymap<egui::Key>),
@@ -137,10 +153,13 @@ impl Default for EvdevKeymap {
 impl Default for _EvdevInput {
     fn default() -> Self {
         Self {
-            analogue1: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_X".into(),
-            analogue2: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Y".into(),
-            analogue3: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Z".into(),
-            analogue4: "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_RZ".into(),
+            analogues: [
+                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_X".into(),
+                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Y".into(),
+                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Z".into(),
+                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_RZ".into()
+            ],
+            analogue_deadzones: [(0,0,0);8],
             player1: EvdevKeymap::default(),
             player2: EvdevKeymap::default(),
         }
@@ -158,17 +177,15 @@ impl Default for _EvdevInput {
  */
 pub struct LindberghConfig {
     pub exe_path: String,
-    // Display width,height
+    // width,height
     pub window_size: (u32, u32),
     pub fullscreen: bool,
     pub disable_sdl: bool,
     pub game_region: GameRegion,
     pub freeplay: bool,
     pub input_method: Keymap,
-    // if this is none,jvs will be emulated
     pub jvs_path: String,
     pub emulate_jvs: bool,
-    // if this is none,rideboard,driveboard or motionboard will be emulated
     pub serial_port1: String,
     pub emulate_rideboard: bool,
     pub emulate_motionboard: bool,
@@ -184,6 +201,8 @@ pub struct LindberghConfig {
     pub enable_fps_limiter: bool,
     pub limit_fps_target: u32,
     pub lets_go_jungle_render_with_mesa: bool,
+    pub skip_outrun_cabinet_check: bool,
+    pub mj4_enable_all_time: bool,
     pub primevalhunt_mode: Option<PrimevalHuntMode>,
     pub lindbergh_color: LindberghColor,
 }
@@ -214,9 +233,28 @@ impl Default for LindberghConfig {
             outrun_lens_glare_enable: false,
             enable_fps_limiter: false,
             limit_fps_target: 60,
-            lets_go_jungle_render_with_mesa: false,
+            lets_go_jungle_render_with_mesa: true,
+            skip_outrun_cabinet_check: false,
+            mj4_enable_all_time: true,
             primevalhunt_mode: None,
             lindbergh_color: LindberghColor::YELLOW,
         }
+    }
+}
+impl LindberghConfig {
+
+    // TODO: Replace this robust Result type with anyhow perhaps?
+    pub fn from_lindbergh_conf(&mut self, conf_path: impl AsRef<Path>) -> io::Result<()> {
+        
+        Ok(())
+    }
+
+    pub fn write_to_lindbergh_conf(&self, conf_path: impl AsRef<Path>, current_game: &GameData) -> io::Result<()> {
+        let mut f = File::options().write(true).open(conf_path)?;
+        writeln!(f,"WIDTH {}",self.window_size.0);
+        writeln!(f,"HEIGHT {}",self.window_size.1);
+        writeln!(f,"FULLSCREEN {}",self.fullscreen as i32);
+        
+        Ok(())
     }
 }
