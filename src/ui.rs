@@ -1,8 +1,12 @@
-use crate::config::{GameRegion, GpuType, LindberghColor, LindberghConfig, SdlKeymap};
+use crate::config::{GameRegion, GpuType, LindberghColor, LindberghConfig};
 use crate::games::{GameData, GameTitle, GameType};
-use eframe::egui::{self, Align, Button, Color32, Key, Label, Layout, Margin, Modal, RichText, Spacing};
+use anyhow::Ok;
+use eframe::egui::{
+    self, Color32, Key, Modal, RichText
+};
 use rfd::FileDialog;
-use std::path::PathBuf;
+use std::fs::{self, File};
+use std::io::Write;
 enum AppState {
     MainPage,
     ConfigureMapping,
@@ -27,6 +31,7 @@ impl Default for AppState {
         Self::MainPage
     }
 }
+#[derive(Clone)]
 pub struct SharedState {
     pub new_game_modify: i32,
     pub shared_text: Vec<String>,
@@ -39,12 +44,25 @@ impl Default for SharedState {
         }
     }
 }
+impl SharedState {
+    pub fn assign_conf(&self, lconf: &mut LindberghConfig) -> anyhow::Result<()> {
+        if !self.shared_text[0].is_empty() && !self.shared_text[1].is_empty() {
+            lconf.window_size = (
+                self.shared_text[0].parse::<u32>()?,
+                self.shared_text[1].parse::<u32>()?,
+            );
+        }
+        if lconf.enable_fps_limiter {
+            lconf.limit_fps_target = self.shared_text[2].parse()?;
+        }
+        Ok(())
+    }
+}
 pub struct LoaderApp {
     app_state: AppState,
     modal: Option<ModalInfo>,
-    //TODO: mark this private when release : Testing purpose only
-    pub game_library: Vec<GameData>,
-    //dirty ways to share state TwT
+    game_library: Vec<GameData>,
+    // dirty ways to share state TwT
     shared_state: SharedState,
     current_game: GameTitle,
 }
@@ -158,14 +176,14 @@ impl LoaderApp {
                 } else {
                     ui.image(format!(
                         "file://./assets/{}.png",
-                        Into::<GameData>::into(self.current_game.clone()).game_id
+                        self.current_game.into_gamedata().game_id
                     ));
                 }
                 ui.separator();
                 egui::Grid::new("main page grid")
                     .num_columns(2)
                     .show(ui, |ui| {
-                        let curr_data: GameData = self.current_game.clone().into();
+                        let curr_data: GameData = self.current_game.into_gamedata();
                         ui.strong("Game:");
                         let s = &curr_data.game_title;
                         if s.len() >= 25 {
@@ -246,8 +264,7 @@ impl LoaderApp {
                             {
                                 let mut del: i32 = -1;
                                 for (cnt, i) in self.game_library.iter().enumerate() {
-                                    if Into::<GameData>::into(self.current_game.clone()).game_title
-                                        == i.game_title
+                                    if self.current_game.into_gamedata().game_title == i.game_title
                                     {
                                         del = cnt as i32;
                                     }
@@ -343,30 +360,29 @@ impl LoaderApp {
                         }
                     });
             });
-            egui::TopBottomPanel::bottom("new game bottom panel")
-                .show(ctx, |ui| {
-                    egui_alignments::center_horizontal(ui,|ui| {
-                        if ui.button("Save").clicked()
-                            && self.current_game != GameTitle::Unknown
-                            && !self
-                                .game_library
-                                .iter()
-                                .map(|x| GameTitle::from(x))
-                                .collect::<Vec<GameTitle>>()
-                                .contains(&self.current_game)
-                        {
-                            self.game_library[modf_pos].assign_title(self.current_game.clone());
-                            self.shared_state.new_game_modify = -1;
-                            self.app_state = AppState::MainPage;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.game_library.remove(modf_pos);
-                            self.current_game = GameTitle::Unknown;
-                            self.shared_state.new_game_modify = -1;
-                            self.app_state = AppState::MainPage;
-                        }
-                    });
+            egui::TopBottomPanel::bottom("new game bottom panel").show(ctx, |ui| {
+                egui_alignments::center_horizontal(ui, |ui| {
+                    if ui.button("Save").clicked()
+                        && self.current_game != GameTitle::Unknown
+                        && !self
+                            .game_library
+                            .iter()
+                            .map(|x| GameTitle::from(x))
+                            .collect::<Vec<GameTitle>>()
+                            .contains(&self.current_game)
+                    {
+                        self.game_library[modf_pos].assign_title(&self.current_game);
+                        self.shared_state.new_game_modify = -1;
+                        self.app_state = AppState::MainPage;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.game_library.remove(modf_pos);
+                        self.current_game = GameTitle::Unknown;
+                        self.shared_state.new_game_modify = -1;
+                        self.app_state = AppState::MainPage;
+                    }
                 });
+            });
         });
     }
     fn configure_game_ui(&mut self, ctx: &egui::Context) {
@@ -394,24 +410,23 @@ impl LoaderApp {
                     egui_alignments::top_horizontal_wrapped(ui, |ui| {
                         egui::Grid::new("configure game grid").show(ui, |ui| {
                             ui.label("Executable Path:");
-                            if self.shared_state.shared_text[0].is_empty() {
-                            } else if self.shared_state.shared_text[0].len() > 40 {
+                            if self.get_config().exe_path.len() > 40 {
                                 ui.label(format!(
                                     "{}..",
-                                    &(self.shared_state.shared_text[0])
+                                    &(self.get_config().exe_path)
                                         .chars()
                                         .take(48)
                                         .collect::<String>()
                                 ));
                             } else {
-                                ui.label(&self.shared_state.shared_text[0]);
+                                ui.label(&self.get_config().exe_path);
                             }
                             if ui.small_button("📁").clicked() {
                                 if let Some(path) = FileDialog::new()
                                     .add_filter("Executable File", &["elf", ""])
                                     .pick_file()
                                 {
-                                    self.shared_state.shared_text[0] =
+                                    self.get_config_mut().exe_path =
                                         path.to_string_lossy().to_string();
                                 }
                             }
@@ -447,10 +462,10 @@ impl LoaderApp {
                                 });
                             ui.end_row();
                             ui.label("Custom width:");
-                            ui.text_edit_singleline(&mut self.shared_state.shared_text[1]);
+                            ui.text_edit_singleline(&mut self.shared_state.shared_text[0]);
                             ui.end_row();
                             ui.label("Custom Height:");
-                            ui.text_edit_singleline(&mut self.shared_state.shared_text[2]);
+                            ui.text_edit_singleline(&mut self.shared_state.shared_text[1]);
                             ui.end_row();
                             ui.label("Fullscreen:");
                             ui.checkbox(&mut self.get_config_mut().fullscreen, "");
@@ -550,7 +565,7 @@ impl LoaderApp {
                                         ui.selectable_value(
                                             &mut self.get_config_mut().gpu_vendor,
                                             i.clone(),
-                                            i.clone().to_string(),
+                                            (&i).to_string(),
                                         );
                                     }
                                 });
@@ -577,12 +592,35 @@ impl LoaderApp {
                                 );
                                 ui.end_row();
                             }
+                            ui.label("Enable border:");
+                            ui.checkbox(&mut self.get_config_mut().border_enabled, "");
+                            ui.end_row();
+                            if self.get_config().border_enabled {
+                                ui.label("White border:");
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut self.get_config_mut().white_border_percentage,
+                                        0..=100,
+                                    )
+                                    .suffix("%"),
+                                );
+                                ui.end_row();
+                                ui.label("Black border:");
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut self.get_config_mut().black_border_percentage,
+                                        0..=100,
+                                    )
+                                    .suffix("%"),
+                                );
+                                ui.end_row();
+                            }
                             ui.label("Enable FPS limiter:");
                             ui.checkbox(&mut self.get_config_mut().enable_fps_limiter, "");
                             ui.end_row();
                             if self.get_config().enable_fps_limiter {
                                 ui.label("FPS limit:");
-                                ui.text_edit_singleline(&mut self.shared_state.shared_text[3]);
+                                ui.text_edit_singleline(&mut self.shared_state.shared_text[2]);
                                 ui.end_row();
                             }
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
@@ -601,14 +639,13 @@ impl LoaderApp {
                                         LindberghColor::BLUE,
                                         LindberghColor::RED,
                                         LindberghColor::REDEX,
-                                        LindberghColor::REDEX,
                                         LindberghColor::SILVER,
                                         LindberghColor::YELLOW,
                                     ] {
                                         ui.selectable_value(
                                             &mut self.get_config_mut().lindbergh_color,
                                             i.clone(),
-                                            i.clone().to_string(),
+                                            (&i).to_string(),
                                         );
                                     }
                                 });
@@ -617,30 +654,61 @@ impl LoaderApp {
                 });
         });
         egui::TopBottomPanel::bottom("config game btm panel").show(ctx, |ui| {
-            egui_alignments::center_horizontal(ui,|ui| {
-                    if ui.button("Save").clicked() {
-                       
-                        self.shared_state.new_game_modify = -1;
-                        self.shared_state.shared_text.clear();
-                        self.app_state = AppState::MainPage;
+            egui_alignments::center_horizontal(ui, |ui| {
+                if ui.button("Save").clicked() {
+                    let v = self.shared_state.clone();
+                    if let Err(e) = v.assign_conf(self.get_config_mut()) {
+                        self.set_modal(
+                            format!("Error occurred while parsing data \"{}\"", e),
+                            ModalStatus::Error,
+                        );
+                    } else {
+                        if let Err(e) = self.get_config().write_to_lindbergh_conf(
+                            format!("./config/{}.conf", self.current_game.to_string()),
+                            &self.current_game,
+                        ) {
+                            self.set_modal(
+                                format!("Error occurred while writing data \"{}\"", e),
+                                ModalStatus::Error,
+                            );
+                        } else {
+                            self.set_modal(
+                                format!(
+                                    "Configuration successfully saved into {}",
+                                    format!("./config/{}.conf", self.current_game.to_string())
+                                ),
+                                ModalStatus::Info,
+                            );
+                            self.shared_state.new_game_modify = -1;
+                            self.shared_state.shared_text.clear();
+                            self.app_state = AppState::MainPage;
+                        }
                     }
-                    if ui.button("Cancel").clicked() {
-                        self.shared_state.new_game_modify = -1;
-                        self.shared_state.shared_text.clear();
-                        self.app_state = AppState::MainPage;
-                    }
+                }
+                if ui.button("Cancel").clicked() {
+                    self.shared_state.new_game_modify = -1;
+                    self.shared_state.shared_text.clear();
+                    self.app_state = AppState::MainPage;
+                }
             });
         });
     }
-    fn configure_mapping_ui(&mut self,ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            
-        });
+    fn configure_mapping_ui(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {});
     }
 }
 impl eframe::App for LoaderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.modal_update(ctx);
+        // TODO: Find a way to report error
+        if !fs::exists("./config").unwrap() {
+            fs::create_dir("./config").unwrap();
+        }
+        if !fs::exists("./config/exe_paths.conf").unwrap() {
+            let mut f = File::create("./config/exe_paths.conf").unwrap();
+            writeln!(f, "# This file is generated by lindbergh-loader-gui").unwrap();
+            writeln!(f, "# Do not modify it unless you know what you're doing").unwrap();
+        }
         match self.app_state {
             AppState::MainPage => {
                 self.main_page_ui(ctx);
@@ -651,7 +719,9 @@ impl eframe::App for LoaderApp {
             AppState::ConfigureGame => {
                 self.configure_game_ui(ctx);
             }
-            AppState::ConfigureMapping => {}
+            AppState::ConfigureMapping => {
+                self.configure_mapping_ui(ctx);
+            }
         }
     }
 }
@@ -659,7 +729,7 @@ impl eframe::App for LoaderApp {
 // NOTE: F13~F35 will not be mapped because I don't know in which universe keyboard has these keys
 
 pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
-    let zero= key.name().chars().nth(0).unwrap();
+    let zero = key.name().chars().nth(0).unwrap();
     if zero.is_numeric() {
         if zero == '0' {
             return Some(19);
@@ -712,7 +782,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
             Key::F10 => Some(76),
             Key::F11 => Some(95),
             Key::F12 => Some(96),
-            _ => None
+            _ => None,
         };
     }
     return match key {
@@ -749,7 +819,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
         Key::Copy => Some(141),
         Key::Paste => Some(144),
         Key::Cut => Some(145),
-        _ => None
+        _ => None,
     };
 }
 // Thanks chatgpt

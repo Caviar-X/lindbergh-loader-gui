@@ -1,5 +1,5 @@
 use crate::config::LindberghConfig;
-use std::{fmt::Debug, process::Command};
+use std::fmt::Debug;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameType {
@@ -49,8 +49,8 @@ impl Default for GameData {
     }
 }
 impl GameData {
-    pub fn assign_title(&mut self, title: GameTitle) {
-        let assign_data: GameData = title.into();
+    pub fn assign_title(&mut self, title: &GameTitle) {
+        let assign_data: GameData = title.into_gamedata();
         self.game_type = assign_data.game_type;
         self.not_working_on_ati = assign_data.not_working_on_ati;
         self.game_title = assign_data.game_title;
@@ -204,8 +204,8 @@ impl<T: Into<String>> From<T> for GameTitle {
         }
     }
 }
-impl Into<GameData> for GameTitle {
-    fn into(self) -> GameData {
+impl GameTitle {
+    pub fn into_gamedata(&self) -> GameData {
         match self {
             Self::Segaboot
             | Self::Segaboot_2_4

@@ -1,7 +1,15 @@
-use std::{fmt::Display, fs::File, io::{self, Error, ErrorKind, Write}, path::Path};
+use crate::{
+    games::GameTitle,
+    ui::egui_key_to_keycode,
+};
+use anyhow::{Ok, anyhow};
 use eframe::egui;
-
-use crate::games::GameData;
+use std::{
+    fmt::Display,
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameRegion {
     JP,
@@ -21,6 +29,18 @@ pub enum GpuType {
     ATI = 3,
     Intel = 4,
     Unknown = 5,
+}
+impl GpuType {
+    fn into_i32(&self) -> i32 {
+        match self {
+            Self::AutoDetect => 0,
+            Self::Nvidia => 1,
+            Self::AMD => 2,
+            Self::ATI => 3,
+            Self::Intel => 4,
+            Self::Unknown => 5,
+        }
+    }
 }
 impl Display for GpuType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -47,7 +67,16 @@ pub enum PrimevalHuntMode {
     TouchScreenRight = 3,
     TouchScreenBottom = 4,
 }
-
+impl PrimevalHuntMode {
+    pub fn into_i32(&self) -> i32 {
+        match self {
+            Self::NoTouchScreen => 1,
+            Self::SideBySide => 2,
+            Self::TouchScreenRight => 3,
+            Self::TouchScreenBottom => 4,
+        }
+    }
+}
 // WARNING: Do not directly use this type
 pub struct _Keymap<T> {
     // NOTE: By defualt,we follow Player1's test_key
@@ -75,35 +104,193 @@ pub type EvdevKeymap = _Keymap<String>;
 pub struct _EvdevInput {
     pub player1: EvdevKeymap,
     pub player2: EvdevKeymap,
-    pub analogues: [String;4],
-    pub analogue_deadzones: [(u8,u8,u8);8]
+    pub analogues: [String; 4],
+    pub analogue_deadzones: [(u8, u8, u8); 8],
 }
 impl _EvdevInput {
-    pub fn write_to_lindbergh_conf(&self,f: &mut File) -> std::result::Result<(),String> {
+    pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
         if self.player1.test.is_none() && self.player2.test.is_none() {
-            return Err("Unable to Find support key".into());
+            return Err(anyhow!("Unable to find test key"));
         }
-        
+        writeln!(
+            f,
+            "TEST_BUTTON {}",
+            if self.player1.test.is_some() {
+                self.player1.test.as_ref().unwrap()
+            } else {
+                self.player2.test.as_ref().unwrap()
+            }
+        )?;
+        writeln!(f, "PLAYER_1_BUTTON_START {}", self.player1.start)?;
+        writeln!(f, "PLAYER_1_BUTTON_SERVICE {}", self.player1.service)?;
+        writeln!(f, "PLAYER_1_BUTTON_UP {}", self.player1.up)?;
+        writeln!(f, "PLAYER_1_BUTTON_DOWN {}", self.player1.down)?;
+        writeln!(f, "PLAYER_1_BUTTON_LEFT {}", self.player1.left)?;
+        writeln!(f, "PLAYER_1_BUTTON_RIGHT {}", self.player1.right)?;
+        writeln!(f, "PLAYER_1_BUTTON_1 {}", self.player1.button1)?;
+        writeln!(f, "PLAYER_1_BUTTON_2 {}", self.player1.button2)?;
+        writeln!(f, "PLAYER_1_BUTTON_3 {}", self.player1.button3)?;
+        writeln!(f, "PLAYER_1_BUTTON_4 {}", self.player1.button4)?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_5 {}",
+            self.player1.button5.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_6 {}",
+            self.player1.button6.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_7 {}",
+            self.player1.button7.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_8 {}",
+            self.player1.button8.as_ref().unwrap()
+        )?;
+
+        writeln!(f, "PLAYER_2_BUTTON_START {}", self.player2.start)?;
+        writeln!(f, "PLAYER_2_BUTTON_SERVICE {}", self.player2.service)?;
+        writeln!(f, "PLAYER_2_BUTTON_UP {}", self.player2.up)?;
+        writeln!(f, "PLAYER_2_BUTTON_DOWN {}", self.player2.down)?;
+        writeln!(f, "PLAYER_2_BUTTON_LEFT {}", self.player2.left)?;
+        writeln!(f, "PLAYER_2_BUTTON_RIGHT {}", self.player2.right)?;
+        writeln!(f, "PLAYER_2_BUTTON_1 {}", self.player2.button1)?;
+        writeln!(f, "PLAYER_2_BUTTON_2 {}", self.player2.button2)?;
+        writeln!(f, "PLAYER_2_BUTTON_3 {}", self.player2.button3)?;
+        writeln!(f, "PLAYER_2_BUTTON_4 {}", self.player2.button4)?;
+        writeln!(
+            f,
+            "PLAYER_2_BUTTON_5 {}",
+            self.player2.button5.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_2_BUTTON_6 {}",
+            self.player2.button6.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_2_BUTTON_7 {}",
+            self.player2.button7.as_ref().unwrap()
+        )?;
+        writeln!(
+            f,
+            "PLAYER_2_BUTTON_8 {}",
+            self.player2.button8.as_ref().unwrap()
+        )?;
+        for (cnt, i) in (&self.analogues).iter().enumerate() {
+            writeln!(f, "ANALOGUE_{} {}", cnt + 1, i)?;
+        }
+        for (cnt, i) in (&self.analogue_deadzones).iter().enumerate() {
+            writeln!(f, "ANALOGUE_DEADZONE_{} {} {} {}", cnt + 1, i.0, i.1, i.2)?;
+        }
         Ok(())
     }
 }
-
+impl SdlKeymap {
+    pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
+        if self.test.is_none() {
+            return Err(anyhow!("Cannot find test key"));
+        }
+        if self.coin.is_none() {
+            return Err(anyhow!("Cannot find coin key"));
+        }
+        fn result_key_to_keycode(key: &egui::Key) -> anyhow::Result<u32> {
+            egui_key_to_keycode(key).ok_or(anyhow!("Cannot find corresponding keycode to key!"))
+        }
+        writeln!(
+            f,
+            "TEST_KEY {}",
+            result_key_to_keycode(self.test.as_ref().unwrap())?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_START_KEY {}",
+            result_key_to_keycode(&self.start)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_SERVICE_KEY {}",
+            result_key_to_keycode(&self.service)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_COIN_KEY {}",
+            result_key_to_keycode(self.coin.as_ref().unwrap())?
+        )?;
+        writeln!(f, "PLAYER_1_UP_KEY {}", result_key_to_keycode(&self.up)?)?;
+        writeln!(
+            f,
+            "PLAYER_1_DOWN_KEY {}",
+            result_key_to_keycode(&self.down)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_LEFT_KEY {}",
+            result_key_to_keycode(&self.left)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_RIGHT_KEY {}",
+            result_key_to_keycode(&self.right)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_1_KEY {}",
+            result_key_to_keycode(&self.button1)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_2_KEY {}",
+            result_key_to_keycode(&self.button2)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_3_KEY {}",
+            result_key_to_keycode(&self.button3)?
+        )?;
+        writeln!(
+            f,
+            "PLAYER_1_BUTTON_4_KEY {}",
+            result_key_to_keycode(&self.button4)?
+        )?;
+        Ok(())
+    }
+}
 // NOTE: Use this in other module only
 pub enum Keymap {
     // SDL/X11 input does not support second player
     Sdl(_Keymap<egui::Key>),
     Evdev(_EvdevInput),
-    Both {
-        sdl_input: _Keymap<egui::Key>,
-        evdev_input: _EvdevInput,
-    },
+    Both(_Keymap<egui::Key>, _EvdevInput),
+}
+impl Keymap {
+    fn into_i32(&self) -> i32 {
+        match self {
+            Self::Sdl(_) => 1,
+            Self::Evdev(_) => 2,
+            Self::Both(_, _) => 0,
+        }
+    }
+    fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
+        match self {
+            Self::Sdl(s) => s.write_to_lindbergh_conf(f)?,
+            Self::Evdev(e) => e.write_to_lindbergh_conf(f)?,
+            Self::Both(s, e) => {
+                s.write_to_lindbergh_conf(f)?;
+                e.write_to_lindbergh_conf(f)?;
+            }
+        }
+        Ok(())
+    }
 }
 impl Default for Keymap {
     fn default() -> Self {
-        Keymap::Both {
-            sdl_input: SdlKeymap::default(),
-            evdev_input: _EvdevInput::default(),
-        }
+        Keymap::Both(SdlKeymap::default(), _EvdevInput::default())
     }
 }
 impl Default for SdlKeymap {
@@ -157,9 +344,9 @@ impl Default for _EvdevInput {
                 "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_X".into(),
                 "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Y".into(),
                 "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_Z".into(),
-                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_RZ".into()
+                "SYNPS_2_SYNAPTICS_TOUCHPAD_ABS_RZ".into(),
             ],
-            analogue_deadzones: [(0,0,0);8],
+            analogue_deadzones: [(0, 0, 0); 8],
             player1: EvdevKeymap::default(),
             player2: EvdevKeymap::default(),
         }
@@ -200,6 +387,9 @@ pub struct LindberghConfig {
     pub outrun_lens_glare_enable: bool,
     pub enable_fps_limiter: bool,
     pub limit_fps_target: u32,
+    pub border_enabled: bool,
+    pub white_border_percentage: u32,
+    pub black_border_percentage: u32,
     pub lets_go_jungle_render_with_mesa: bool,
     pub skip_outrun_cabinet_check: bool,
     pub mj4_enable_all_time: bool,
@@ -233,6 +423,9 @@ impl Default for LindberghConfig {
             outrun_lens_glare_enable: false,
             enable_fps_limiter: false,
             limit_fps_target: 60,
+            border_enabled: false,
+            white_border_percentage: 2,
+            black_border_percentage: 0,
             lets_go_jungle_render_with_mesa: true,
             skip_outrun_cabinet_check: false,
             mj4_enable_all_time: true,
@@ -242,19 +435,87 @@ impl Default for LindberghConfig {
     }
 }
 impl LindberghConfig {
-
-    // TODO: Replace this robust Result type with anyhow perhaps?
-    pub fn from_lindbergh_conf(&mut self, conf_path: impl AsRef<Path>) -> io::Result<()> {
-        
+    pub fn from_lindbergh_conf(&mut self, conf_path: impl AsRef<Path>) -> anyhow::Result<()> {
         Ok(())
     }
 
-    pub fn write_to_lindbergh_conf(&self, conf_path: impl AsRef<Path>, current_game: &GameData) -> io::Result<()> {
+    pub fn write_to_lindbergh_conf(
+        &self,
+        conf_path: impl AsRef<Path>,
+        current_title: &GameTitle,
+    ) -> anyhow::Result<()> {
+        if !fs::exists(&conf_path)? {
+            File::create_new(&conf_path)?;
+        }
         let mut f = File::options().write(true).open(conf_path)?;
-        writeln!(f,"WIDTH {}",self.window_size.0);
-        writeln!(f,"HEIGHT {}",self.window_size.1);
-        writeln!(f,"FULLSCREEN {}",self.fullscreen as i32);
-        
+        let mut e = File::options()
+            .append(true)
+            .open("./config/exe_paths.conf")?;
+        writeln!(e, "{:?} {}", current_title, self.exe_path)?;
+        writeln!(f, "# This file is generated by lindbergh-loader-gui")?;
+        writeln!(
+            f,
+            "# Do not make any changes unless you know what you're doing"
+        )?;
+        writeln!(f, "WIDTH {}", self.window_size.0)?;
+        writeln!(f, "HEIGHT {}", self.window_size.1)?;
+        writeln!(f, "FULLSCREEN {}", self.fullscreen as i32)?;
+        writeln!(f, "INPUT_MODE {}", self.input_method.into_i32())?;
+        writeln!(f, "NO_SDL {}", self.disable_sdl as i32)?;
+        writeln!(f, "REGION {}", self.game_region)?;
+        writeln!(f, "FREEPLAY {}", self.freeplay)?;
+        writeln!(f, "EMULATE_JVS {}", self.emulate_jvs)?;
+        writeln!(f, "EMULATE_RIDEBOARD {}", self.emulate_rideboard as i32)?;
+        writeln!(f, "EMULATE_MOTIONBOARD {}", self.emulate_motionboard as i32)?;
+        writeln!(f, "EMULATE_DRIVEBOARD {}", self.emulate_driveboard as i32)?;
+        writeln!(f, "JVS_PATH {}", self.jvs_path)?;
+        writeln!(f, "SERIAL_1_PATH {}", self.serial_port1)?;
+        writeln!(f, "SERIAL_2_PATH {}", self.serial_port2)?;
+        writeln!(f, "SRAM_PATH {}", self.sram_path)?;
+        writeln!(f, "EEPROM_PATH {}", self.eeprom_path)?;
+        writeln!(f, "GPU_VENDOR {}", self.gpu_vendor.into_i32())?;
+        writeln!(f, "DEBUG_MSGS {}", self.debug_message as i32)?;
+        writeln!(f, "BORDER_ENABLED {}", self.border_enabled as i32)?;
+        writeln!(
+            f,
+            "WHITE_BORDER_PERCENTAGE {}",
+            self.white_border_percentage
+        )?;
+        writeln!(
+            f,
+            "BLACK_BORDER_PERCENTAGE {}",
+            self.black_border_percentage
+        )?;
+        writeln!(f, "HUMMER_FLICKER_FIX {}", self.hammer_flicker_fix)?;
+        writeln!(f, "KEEP_ASPECT_RATIO {}", self.keep_aspect_ratio)?;
+        writeln!(
+            f,
+            "OUTRUN_LENS_GLARE_ENABLED {}",
+            self.outrun_lens_glare_enable
+        )?;
+        writeln!(
+            f,
+            "SKIP_OUTRUN_CABINET_CHECK {}",
+            self.skip_outrun_cabinet_check
+        )?;
+        writeln!(f, "FPS_LIMITER_ENABLED {}", self.enable_fps_limiter)?;
+        writeln!(f, "FPS_TARGET {}", self.limit_fps_target)?;
+        writeln!(
+            f,
+            "LGJ_RENDER_WITH_MESA {}",
+            self.lets_go_jungle_render_with_mesa
+        )?;
+        writeln!(
+            f,
+            "PRIMEVAL_HUNT_MODE {}",
+            if self.primevalhunt_mode.is_none() {
+                0
+            } else {
+                self.primevalhunt_mode.as_ref().unwrap().into_i32()
+            }
+        )?;
+        writeln!(f, "LINDBERGH_COLOUR {}", self.lindbergh_color)?;
+        self.input_method.write_to_lindbergh_conf(&mut f)?;
         Ok(())
     }
 }
