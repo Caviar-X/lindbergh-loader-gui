@@ -2,7 +2,11 @@
 
 **Main Page**
 
-![](./look.png)
+![](./main_look.png)
+
+**Configuration Page**
+
+![](./config_game_look.png)
 
 This is a GUI for [lindbergh-loader](https://github.com/lindbergh-loader/lindbergh-loader)
 
