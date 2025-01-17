@@ -3,7 +3,7 @@ use crate::games::{GameData, GameTitle, GameType};
 use anyhow::Ok;
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use rfd::FileDialog;
-use std::fs::{self, File};
+use std::fs::{self, File, read_to_string};
 use std::io::Write;
 enum AppState {
     MainPage,
@@ -154,6 +154,41 @@ impl LoaderApp {
                     }
                 });
             });
+        }
+    }
+    fn game_library_update(&mut self) {
+        if self.game_library.is_empty() {
+            let buf = read_to_string("./config/exe_paths.conf");
+            if let Err(e) = buf {
+                self.set_modal(
+                    format!("Unable to read ./config/exe_paths.conf,cause:\n{}\nConfig stored cannot be displayed",e),
+                    ModalStatus::Error,
+                );
+            } else {
+                for (cnt, i) in buf.unwrap().lines().enumerate() {
+                    if i.starts_with("#") || i.trim().is_empty() {
+                        continue;
+                    }
+                    let a = i.split_once(char::is_whitespace);
+                    if a.is_none() {
+                        self.set_modal(
+                            format!(
+                                "Invaild argument at ./config/exe_paths.conf on line {}",
+                                cnt + 1
+                            ),
+                            ModalStatus::Error,
+                        );
+                        return;
+                    }
+                    let (name, _) = a.unwrap();
+                    for j in GameTitle::all_variants() {
+                        if format!("{:?}", j) == name {
+                            self.game_library.push(j.into_gamedata());
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -397,6 +432,20 @@ impl LoaderApp {
             self.app_state = AppState::MainPage;
             return;
         }
+        let cur_game = self.current_game.clone();
+        let p = format!("./config/{:?}.conf", cur_game);
+        if fs::exists(&p).unwrap() && self.get_config().exe_path.is_empty() {
+            if let Err(e) = self
+                .get_config_mut()
+                .read_from_lindbergh_conf_by_title(&cur_game)
+            {
+                self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,cur_game), ModalStatus::Error);
+            } else {
+                self.shared_state.shared_text[0] = self.get_config().window_size.0.to_string();
+                self.shared_state.shared_text[1] = self.get_config().window_size.1.to_string();
+                self.shared_state.shared_text[2] = self.get_config().limit_fps_target.to_string();
+            }
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             egui_alignments::top_horizontal(ui, |ui| {
                 ui.heading(RichText::new("Configure Game").size(35.0).strong());
@@ -468,7 +517,7 @@ impl LoaderApp {
                             ui.label("Fullscreen:");
                             ui.checkbox(&mut self.get_config_mut().fullscreen, "");
                             ui.end_row();
-                            ui.label("Disable SDL");
+                            ui.label("Disable SDL:");
                             ui.checkbox(&mut self.get_config_mut().disable_sdl, "");
                             ui.end_row();
                             ui.label("Reigon:");
@@ -495,7 +544,7 @@ impl LoaderApp {
                             ui.label("Freeplay:");
                             ui.checkbox(&mut self.get_config_mut().freeplay, "");
                             ui.end_row();
-                            ui.label("Emulate JVS");
+                            ui.label("Emulate JVS:");
                             ui.checkbox(&mut self.get_config_mut().emulate_jvs, "");
                             ui.end_row();
                             if !self.get_config().emulate_jvs {
@@ -568,7 +617,7 @@ impl LoaderApp {
                                     }
                                 });
                             ui.end_row();
-                            ui.label("Show debug message");
+                            ui.label("Show debug message:");
                             ui.checkbox(&mut self.get_config_mut().debug_message, "");
                             ui.end_row();
                             if GameTitle::from(self.get_game()) == GameTitle::Hummer
@@ -629,6 +678,14 @@ impl LoaderApp {
                                 );
                                 ui.end_row();
                             }
+                            if GameTitle::from(self.get_game()) == GameTitle::Taisen_Mahjong_4
+                                || GameTitle::from(self.get_game())
+                                    == GameTitle::Taisen_Mahjong_4_Evolution
+                            {
+                                ui.label("Mahjong 4 enable all the time:");
+                                ui.checkbox(&mut self.get_config_mut().mj4_enable_all_time, "");
+                                ui.end_row();
+                            }
                             ui.label("Lindbergh color:");
                             egui::ComboBox::from_id_salt("color cbb")
                                 .selected_text(self.get_config().lindbergh_color.to_string())
@@ -647,6 +704,7 @@ impl LoaderApp {
                                         );
                                     }
                                 });
+                            ui.end_row();
                         });
                     });
                 });
@@ -661,10 +719,10 @@ impl LoaderApp {
                             ModalStatus::Error,
                         );
                     } else {
-                        if let Err(e) = self.get_config().write_to_lindbergh_conf(
-                            format!("./config/{}.conf", self.current_game.to_string()),
-                            &self.current_game,
-                        ) {
+                        if let Err(e) = self
+                            .get_config()
+                            .write_to_lindbergh_conf(&self.current_game)
+                        {
                             self.set_modal(
                                 format!("Error occurred while writing data \"{}\"", e),
                                 ModalStatus::Error,
@@ -673,19 +731,19 @@ impl LoaderApp {
                             self.set_modal(
                                 format!(
                                     "Configuration successfully saved into {}",
-                                    format!("./config/{}.conf", self.current_game.to_string())
+                                    format!("./config/{:?}.conf", self.current_game)
                                 ),
                                 ModalStatus::Info,
                             );
                             self.shared_state.new_game_modify = -1;
-                            self.shared_state.shared_text.clear();
+                            self.shared_state.shared_text = vec![String::new(); 100];
                             self.app_state = AppState::MainPage;
                         }
                     }
                 }
                 if ui.button("Cancel").clicked() {
                     self.shared_state.new_game_modify = -1;
-                    self.shared_state.shared_text.clear();
+                    self.shared_state.shared_text = vec![String::new(); 100];
                     self.app_state = AppState::MainPage;
                 }
             });
@@ -697,7 +755,6 @@ impl LoaderApp {
 }
 impl eframe::App for LoaderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.modal_update(ctx);
         // TODO: Find a way to report error
         if !fs::exists("./config").unwrap() {
             fs::create_dir("./config").unwrap();
@@ -707,6 +764,8 @@ impl eframe::App for LoaderApp {
             writeln!(f, "# This file is generated by lindbergh-loader-gui").unwrap();
             writeln!(f, "# Do not modify it unless you know what you're doing").unwrap();
         }
+        self.modal_update(ctx);
+        self.game_library_update();
         match self.app_state {
             AppState::MainPage => {
                 self.main_page_ui(ctx);

@@ -1,12 +1,24 @@
-use crate::{games::GameTitle, ui::{egui_key_to_keycode, egui_keycode_to_key}};
+use crate::{
+    games::GameTitle,
+    ui::{egui_key_to_keycode, egui_keycode_to_key},
+};
 use anyhow::{Ok, anyhow};
 use eframe::egui;
 use std::{
     fmt::Display,
-    fs::{self, File},
+    fs::{self, File, read_to_string},
     io::Write,
     path::Path,
 };
+
+fn i32_to_bool(value: i32) -> Option<bool> {
+    match value {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameRegion {
     JP,
@@ -18,6 +30,7 @@ impl Display for GameRegion {
         write!(f, "{:?}", self)
     }
 }
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GpuType {
     AutoDetect = 0,
@@ -111,7 +124,7 @@ impl _EvdevInput {
             if r[0] == "#" || r.len() == 0 {
                 continue;
             }
-            if r.len() <= 1 {
+            if r.len() < 2 {
                 return Err(anyhow!("Too few arguments on line {}", cnt + 1));
             }
             match r[0] {
@@ -215,49 +228,49 @@ impl _EvdevInput {
                     self.analogues[3] = r[1].to_string();
                 }
                 "ANALOGUE_DEADZONE_1" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[0] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_2" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[1] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_3" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[2] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_4" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[3] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_5" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[4] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_6" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[5] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_7" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[6] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
                 }
                 "ANALOGUE_DEADZONE_8" => {
-                    if r.len() <= 4 {
+                    if r.len() < 4 {
                         return Err(anyhow!("Too few arguments on line {}", cnt + 1));
                     }
                     self.analogue_deadzones[7] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
@@ -352,54 +365,54 @@ impl _EvdevInput {
 }
 impl SdlKeymap {
     pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
-        fn convert(s: String) -> anyhow::Result<egui::Key> {
+        fn result_keycode_to_key(s: String) -> anyhow::Result<egui::Key> {
             let r = s.parse::<u32>()?;
-            egui_keycode_to_key(r).ok_or(anyhow!("Undefined Keycode {}",r))
+            egui_keycode_to_key(r).ok_or(anyhow!("Undefined Keycode {}", r))
         }
-        for (cnt,i) in buf.lines().enumerate() {
+        for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
             if r[0] == "#" || r.len() == 0 {
                 continue;
             }
-            if r.len() <= 1 {
+            if r.len() < 2 {
                 return Err(anyhow!("Too few arguments on line {}", cnt + 1));
             }
             match r[0] {
                 "TEST_KEY" => {
-                    self.test = Some(convert(r[1].to_string())?);
+                    self.test = Some(result_keycode_to_key(r[1].to_string())?);
                 }
                 "PLAYER_1_START_KEY" => {
-                    self.start = convert(r[1].to_string())?;
+                    self.start = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_SERVICE_KEY" => {
-                    self.service = convert(r[1].to_string())?;
+                    self.service = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_COIN_KEY" => {
-                    self.coin = Some(convert(r[1].to_string())?);
+                    self.coin = Some(result_keycode_to_key(r[1].to_string())?);
                 }
                 "PLAYER_1_UP_KEY" => {
-                    self.up = convert(r[1].to_string())?;
+                    self.up = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_DOWN_KEY" => {
-                    self.down = convert(r[1].to_string())?;
+                    self.down = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_LEFT_KEY" => {
-                    self.left = convert(r[1].to_string())?;
+                    self.left = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_RIGHT_KEY" => {
-                    self.right = convert(r[1].to_string())?;
+                    self.right = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_BUTTON_1_KEY" => {
-                    self.button1 = convert(r[1].to_string())?;
+                    self.button1 = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_BUTTON_2_KEY" => {
-                    self.button2 = convert(r[1].to_string())?;
+                    self.button2 = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_BUTTON_3_KEY" => {
-                    self.button3 = convert(r[1].to_string())?;
+                    self.button3 = result_keycode_to_key(r[1].to_string())?;
                 }
                 "PLAYER_1_BUTTON_4_KEY" => {
-                    self.button4 = convert(r[1].to_string())?;
+                    self.button4 = result_keycode_to_key(r[1].to_string())?;
                 }
                 _ => {}
             }
@@ -490,13 +503,49 @@ impl Keymap {
             Self::Both(_, _) => 0,
         }
     }
-    fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
+    pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
         match self {
             Self::Sdl(s) => s.write_to_lindbergh_conf(f)?,
             Self::Evdev(e) => e.write_to_lindbergh_conf(f)?,
             Self::Both(s, e) => {
                 s.write_to_lindbergh_conf(f)?;
                 e.write_to_lindbergh_conf(f)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+        for (cnt, i) in buf.lines().enumerate() {
+            let r = i.split_whitespace().collect::<Vec<&str>>();
+            if r[0] == "#" || r.len() == 0 {
+                continue;
+            }
+            if r.len() < 2 {
+                return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+            }
+            if r[0] == "INPUT_MODE" {
+                match r[1].parse::<u32>()? {
+                    0 => {
+                        let mut s = SdlKeymap::default();
+                        s.read_from_lindbergh_conf(buf)?;
+                        let mut e = _EvdevInput::default();
+                        e.read_from_lindbergh_conf(buf)?;
+                        *self = Self::Both(s, e);
+                    }
+                    1 => {
+                        let mut s = SdlKeymap::default();
+                        s.read_from_lindbergh_conf(buf)?;
+                        *self = Self::Sdl(s);
+                    }
+                    2 => {
+                        let mut e = _EvdevInput::default();
+                        e.read_from_lindbergh_conf(buf)?;
+                        *self = Self::Evdev(e);
+                    }
+                    _ => {
+                        return Err(anyhow!("Invaild input mode"));
+                    }
+                }
             }
         }
         Ok(())
@@ -607,7 +656,7 @@ pub struct LindberghConfig {
     pub lets_go_jungle_render_with_mesa: bool,
     pub skip_outrun_cabinet_check: bool,
     pub mj4_enable_all_time: bool,
-    pub primevalhunt_mode: Option<PrimevalHuntMode>,
+    pub primevalhunt_mode: PrimevalHuntMode,
     pub lindbergh_color: LindberghColor,
 }
 
@@ -643,29 +692,39 @@ impl Default for LindberghConfig {
             lets_go_jungle_render_with_mesa: true,
             skip_outrun_cabinet_check: false,
             mj4_enable_all_time: true,
-            primevalhunt_mode: None,
+            primevalhunt_mode: PrimevalHuntMode::NoTouchScreen,
             lindbergh_color: LindberghColor::YELLOW,
         }
     }
 }
 impl LindberghConfig {
-    pub fn from_lindbergh_conf(&mut self, conf_path: impl AsRef<Path>) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    pub fn write_to_lindbergh_conf(
-        &self,
-        conf_path: impl AsRef<Path>,
-        current_title: &GameTitle,
-    ) -> anyhow::Result<()> {
-        if !fs::exists(&conf_path)? {
-            File::create_new(&conf_path)?;
+    pub fn write_to_lindbergh_conf(&self, current_title: &GameTitle) -> anyhow::Result<()> {
+        let path = format!("./config/{:?}.conf", current_title);
+        let buf = fs::read_to_string("./config/exe_paths.conf")?;
+        if !fs::exists(&path)? {
+            File::create_new(&path)?;
         }
-        let mut f = File::options().write(true).open(conf_path)?;
+        let mut f = File::options().write(true).open(&path)?;
         let mut e = File::options()
-            .append(true)
+            .write(true)
             .open("./config/exe_paths.conf")?;
-        writeln!(e, "{:?} {}", current_title, self.exe_path)?;
+        if buf.lines().filter(|x| !x.starts_with("#")).count() == 0 {
+            writeln!(e, "# This file is generated by lindbergh-loader-gui")?;
+            writeln!(
+                e,
+                "# Do not make any changes unless you know what you're doing"
+            )?;
+            writeln!(e, "{:?} {}", current_title, self.exe_path)?;
+        } else {
+            for i in buf.lines() {
+                if i.contains(&format!("{:?}", current_title)) {
+                    writeln!(e, "{:?} {}", current_title, self.exe_path)?;
+                } else {
+                    writeln!(e, "{}", i)?;
+                }
+            }
+        }
+
         writeln!(f, "# This file is generated by lindbergh-loader-gui")?;
         writeln!(
             f,
@@ -677,8 +736,8 @@ impl LindberghConfig {
         writeln!(f, "INPUT_MODE {}", self.input_method.into_i32())?;
         writeln!(f, "NO_SDL {}", self.disable_sdl as i32)?;
         writeln!(f, "REGION {}", self.game_region)?;
-        writeln!(f, "FREEPLAY {}", self.freeplay)?;
-        writeln!(f, "EMULATE_JVS {}", self.emulate_jvs)?;
+        writeln!(f, "FREEPLAY {}", self.freeplay as i32)?;
+        writeln!(f, "EMULATE_JVS {}", self.emulate_jvs as i32)?;
         writeln!(f, "EMULATE_RIDEBOARD {}", self.emulate_rideboard as i32)?;
         writeln!(f, "EMULATE_MOTIONBOARD {}", self.emulate_motionboard as i32)?;
         writeln!(f, "EMULATE_DRIVEBOARD {}", self.emulate_driveboard as i32)?;
@@ -700,36 +759,266 @@ impl LindberghConfig {
             "BLACK_BORDER_PERCENTAGE {}",
             self.black_border_percentage
         )?;
-        writeln!(f, "HUMMER_FLICKER_FIX {}", self.hammer_flicker_fix)?;
-        writeln!(f, "KEEP_ASPECT_RATIO {}", self.keep_aspect_ratio)?;
+        writeln!(f, "HUMMER_FLICKER_FIX {}", self.hammer_flicker_fix as i32)?;
+        writeln!(f, "KEEP_ASPECT_RATIO {}", self.keep_aspect_ratio as i32)?;
         writeln!(
             f,
             "OUTRUN_LENS_GLARE_ENABLED {}",
-            self.outrun_lens_glare_enable
+            self.outrun_lens_glare_enable as i32
         )?;
         writeln!(
             f,
             "SKIP_OUTRUN_CABINET_CHECK {}",
-            self.skip_outrun_cabinet_check
+            self.skip_outrun_cabinet_check as i32
         )?;
-        writeln!(f, "FPS_LIMITER_ENABLED {}", self.enable_fps_limiter)?;
+        writeln!(f, "FPS_LIMITER_ENABLED {}", self.enable_fps_limiter as i32)?;
         writeln!(f, "FPS_TARGET {}", self.limit_fps_target)?;
         writeln!(
             f,
             "LGJ_RENDER_WITH_MESA {}",
-            self.lets_go_jungle_render_with_mesa
+            self.lets_go_jungle_render_with_mesa as i32
         )?;
         writeln!(
             f,
             "PRIMEVAL_HUNT_MODE {}",
-            if self.primevalhunt_mode.is_none() {
-                0
-            } else {
-                self.primevalhunt_mode.as_ref().unwrap().into_i32()
-            }
+            self.primevalhunt_mode.into_i32()
         )?;
         writeln!(f, "LINDBERGH_COLOUR {}", self.lindbergh_color)?;
+        writeln!(
+            f,
+            "MJ4_ENABLED_ALL_THE_TIME {}",
+            self.mj4_enable_all_time as i32
+        )?;
         self.input_method.write_to_lindbergh_conf(&mut f)?;
+        Ok(())
+    }
+    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+        fn result_i32_to_bool(value: i32, line: usize) -> anyhow::Result<bool> {
+            i32_to_bool(value).ok_or(anyhow!(
+                "Invaild value at line {},should be only 1 or 0",
+                line
+            ))
+        }
+        self.input_method.read_from_lindbergh_conf(&buf)?;
+        for (cnt, i) in buf.lines().enumerate() {
+            let r = i.split_whitespace().collect::<Vec<&str>>();
+            if r[0] == "#" || r.len() == 0 {
+                continue;
+            }
+            if r.len() < 2 {
+                return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+            }
+            match r[0] {
+                "WIDTH" => {
+                    if r[1] == "AUTO" {
+                        continue;
+                    }
+                    self.window_size.0 = r[1].parse()?;
+                }
+                "HEIGHT" => {
+                    if r[1] == "AUTO" {
+                        continue;
+                    }
+                    self.window_size.1 = r[1].parse()?;
+                }
+                "FULLSCREEN" => {
+                    self.fullscreen = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "NO_SDL" => {
+                    self.disable_sdl = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "REGION" => match r[1] {
+                    "JP" => self.game_region = GameRegion::JP,
+                    "US" => self.game_region = GameRegion::US,
+                    "EX" => self.game_region = GameRegion::EX,
+                    _ => {
+                        return Err(anyhow!("Invaild game region {}", r[1]));
+                    }
+                },
+                "FREEPLAY" => {
+                    self.freeplay = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "EMULATE_JVS" => {
+                    self.emulate_jvs = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "EMULATE_RIDEBOARD" => {
+                    if r[1] == "AUTO" {
+                        continue;
+                    }
+                    self.emulate_rideboard = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "EMULATE_DRIVEBOARD" => {
+                    if r[1] == "AUTO" {
+                        continue;
+                    }
+                    self.emulate_driveboard = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "EMULATE_MOTIONBOARD" => {
+                    if r[1] == "AUTO" {
+                        continue;
+                    }
+                    self.emulate_motionboard = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "JVS_PATH" => {
+                    self.jvs_path = r[1].to_string();
+                }
+                "SERIAL_1_PATH" => {
+                    self.serial_port1 = r[1].to_string();
+                }
+                "SERIAL_2_PATH" => {
+                    self.serial_port2 = r[1].to_string();
+                }
+                "SRAM_PATH" => {
+                    self.sram_path = r[1].to_string();
+                }
+                "EEPROM_PATH" => {
+                    self.eeprom_path = r[1].to_string();
+                }
+                "GPU_VENDOR" => match r[1].parse::<u32>()? {
+                    0 => {
+                        self.gpu_vendor = GpuType::AutoDetect;
+                    }
+                    1 => {
+                        self.gpu_vendor = GpuType::Nvidia;
+                    }
+                    2 => {
+                        self.gpu_vendor = GpuType::AMD;
+                    }
+                    3 => {
+                        self.gpu_vendor = GpuType::ATI;
+                    }
+                    4 => {
+                        self.gpu_vendor = GpuType::Intel;
+                    }
+                    5 => {
+                        self.gpu_vendor = GpuType::Unknown;
+                    }
+                    _ => {
+                        return Err(anyhow!("Invaild GPU vendor"));
+                    }
+                },
+                "DEBUG_MSGS" => {
+                    self.debug_message = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "BORDER_ENABLED" => {
+                    self.border_enabled = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "WHITE_BORDER_PERCENTAGE" => {
+                    let p = r[1].parse::<u32>()?;
+                    if p > 100 {
+                        return Err(anyhow!(
+                            "WHITE_BORDER_PERCENTAGE should be a value from 0 to 100"
+                        ));
+                    }
+                    self.white_border_percentage = p;
+                }
+                "BLACK_BORDER_PERCENTAGE" => {
+                    let p = r[1].parse::<u32>()?;
+                    if p > 100 {
+                        return Err(anyhow!(
+                            "BLACK_BORDER_PERCENTAGE should be a value from 0 to 100"
+                        ));
+                    }
+                    self.black_border_percentage = p;
+                }
+                "HUMMER_FLICKER_FIX" => {
+                    self.hammer_flicker_fix = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "KEEP_ASPECT_RATIO" => {
+                    self.keep_aspect_ratio = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "OUTRUN_LENS_GLARE_ENABLED" => {
+                    self.outrun_lens_glare_enable = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "SKIP_OUTRUN_CABINET_CHECK" => {
+                    self.skip_outrun_cabinet_check = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "FPS_LIMITER_ENABLED" => {
+                    self.enable_fps_limiter = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "FPS_TARGET" => {
+                    self.limit_fps_target = r[1].parse()?;
+                }
+                "LGJ_RENDER_WITH_MESA" => {
+                    self.lets_go_jungle_render_with_mesa =
+                        result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "PRIMEVAL_HUNT_MODE" => match r[1].parse::<u32>()? {
+                    0 | 1 => {
+                        self.primevalhunt_mode = PrimevalHuntMode::NoTouchScreen;
+                    }
+                    2 => {
+                        self.primevalhunt_mode = PrimevalHuntMode::SideBySide;
+                    }
+                    3 => {
+                        self.primevalhunt_mode = PrimevalHuntMode::TouchScreenRight;
+                    }
+                    4 => {
+                        self.primevalhunt_mode = PrimevalHuntMode::TouchScreenBottom;
+                    }
+                    _ => {
+                        return Err(anyhow!("Invaild primeval hunt mode"));
+                    }
+                },
+                "LINDBERGH_COLOUR" => match r[1] {
+                    "YELLOW" => {
+                        self.lindbergh_color = LindberghColor::YELLOW;
+                    }
+                    "RED" => {
+                        self.lindbergh_color = LindberghColor::RED;
+                    }
+                    "BLUE" => {
+                        self.lindbergh_color = LindberghColor::BLUE;
+                    }
+                    "SILVER" => {
+                        self.lindbergh_color = LindberghColor::SILVER;
+                    }
+                    "REDEX" => {
+                        self.lindbergh_color = LindberghColor::REDEX;
+                    }
+                    _ => {
+                        return Err(anyhow!("Invaild lindbergh color"));
+                    }
+                },
+                "MJ4_ENABLED_ALL_THE_TIME" => {
+                    self.mj4_enable_all_time = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    pub fn read_from_lindbergh_conf_by_path(
+        &mut self,
+        path: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
+        let buf = read_to_string(path)?;
+        self.read_from_lindbergh_conf(&buf)?;
+        Ok(())
+    }
+    pub fn read_from_lindbergh_conf_by_title(
+        &mut self,
+        current_title: &GameTitle,
+    ) -> anyhow::Result<()> {
+        // first we have to find exe_path
+        for (cnt, i) in read_to_string("./config/exe_paths.conf")?
+            .lines()
+            .enumerate()
+        {
+            if i.starts_with("#") || i.trim().is_empty() {
+                continue;
+            }
+            let (name, path) = i.split_once(char::is_whitespace).ok_or(anyhow!(
+                "Too few arguments at ./config/exe_paths.conf line {}",
+                cnt + 1
+            ))?;
+            if name == format!("{:?}", current_title) {
+                self.exe_path = String::from(path);
+                break;
+            }
+        }
+        let path = format!("./config/{:?}.conf", current_title);
+        self.read_from_lindbergh_conf_by_path(path)?;
         Ok(())
     }
 }
