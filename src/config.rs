@@ -1,7 +1,4 @@
-use crate::{
-    games::GameTitle,
-    ui::egui_key_to_keycode,
-};
+use crate::{games::GameTitle, ui::{egui_key_to_keycode, egui_keycode_to_key}};
 use anyhow::{Ok, anyhow};
 use eframe::egui;
 use std::{
@@ -105,9 +102,171 @@ pub struct _EvdevInput {
     pub player1: EvdevKeymap,
     pub player2: EvdevKeymap,
     pub analogues: [String; 4],
-    pub analogue_deadzones: [(u8, u8, u8); 8],
+    pub analogue_deadzones: [(u32, u32, u32); 8],
 }
 impl _EvdevInput {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+        for (cnt, i) in buf.lines().enumerate() {
+            let r = i.split_whitespace().collect::<Vec<&str>>();
+            if r[0] == "#" || r.len() == 0 {
+                continue;
+            }
+            if r.len() <= 1 {
+                return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+            }
+            match r[0] {
+                "TEST_BUTTON" => {
+                    self.player1.test = Some(r[1].to_string());
+                }
+                "PLAYER_1_BUTTON_START" => {
+                    self.player1.start = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_SERVICE" => {
+                    self.player1.service = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_UP" => {
+                    self.player1.up = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_DOWN" => {
+                    self.player1.down = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_LEFT" => {
+                    self.player1.left = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_RIGHT" => {
+                    self.player1.right = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_1" => {
+                    self.player1.button1 = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_2" => {
+                    self.player1.button2 = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_3" => {
+                    self.player1.button3 = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_4" => {
+                    self.player1.button4 = r[1].to_string();
+                }
+                "PLAYER_1_BUTTON_5" => {
+                    self.player1.button5 = Some(r[1].to_string());
+                }
+                "PLAYER_1_BUTTON_6" => {
+                    self.player1.button6 = Some(r[1].to_string());
+                }
+                "PLAYER_1_BUTTON_7" => {
+                    self.player1.button7 = Some(r[1].to_string());
+                }
+                "PLAYER_1_BUTTON_8" => {
+                    self.player1.button8 = Some(r[1].to_string());
+                }
+                "PLAYER_2_BUTTON_START" => {
+                    self.player2.start = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_SERVICE" => {
+                    self.player2.service = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_UP" => {
+                    self.player2.up = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_DOWN" => {
+                    self.player2.down = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_LEFT" => {
+                    self.player2.left = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_RIGHT" => {
+                    self.player2.right = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_1" => {
+                    self.player2.button1 = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_2" => {
+                    self.player2.button2 = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_3" => {
+                    self.player2.button3 = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_4" => {
+                    self.player2.button4 = r[1].to_string();
+                }
+                "PLAYER_2_BUTTON_5" => {
+                    self.player2.button5 = Some(r[1].to_string());
+                }
+                "PLAYER_2_BUTTON_6" => {
+                    self.player2.button6 = Some(r[1].to_string());
+                }
+                "PLAYER_2_BUTTON_7" => {
+                    self.player2.button7 = Some(r[1].to_string());
+                }
+                "PLAYER_2_BUTTON_8" => {
+                    self.player2.button8 = Some(r[1].to_string());
+                }
+                "ANALOGUE_1" => {
+                    self.analogues[0] = r[1].to_string();
+                }
+                "ANALOGUE_2" => {
+                    self.analogues[1] = r[1].to_string();
+                }
+                "ANALOGUE_3" => {
+                    self.analogues[2] = r[1].to_string();
+                }
+                "ANALOGUE_4" => {
+                    self.analogues[3] = r[1].to_string();
+                }
+                "ANALOGUE_DEADZONE_1" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[0] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_2" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[1] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_3" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[2] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_4" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[3] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_5" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[4] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_6" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[5] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_7" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[6] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                "ANALOGUE_DEADZONE_8" => {
+                    if r.len() <= 4 {
+                        return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+                    }
+                    self.analogue_deadzones[7] = (r[1].parse()?, r[2].parse()?, r[3].parse()?);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
     pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
         if self.player1.test.is_none() && self.player2.test.is_none() {
             return Err(anyhow!("Unable to find test key"));
@@ -192,6 +351,61 @@ impl _EvdevInput {
     }
 }
 impl SdlKeymap {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+        fn convert(s: String) -> anyhow::Result<egui::Key> {
+            let r = s.parse::<u32>()?;
+            egui_keycode_to_key(r).ok_or(anyhow!("Undefined Keycode {}",r))
+        }
+        for (cnt,i) in buf.lines().enumerate() {
+            let r = i.split_whitespace().collect::<Vec<&str>>();
+            if r[0] == "#" || r.len() == 0 {
+                continue;
+            }
+            if r.len() <= 1 {
+                return Err(anyhow!("Too few arguments on line {}", cnt + 1));
+            }
+            match r[0] {
+                "TEST_KEY" => {
+                    self.test = Some(convert(r[1].to_string())?);
+                }
+                "PLAYER_1_START_KEY" => {
+                    self.start = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_SERVICE_KEY" => {
+                    self.service = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_COIN_KEY" => {
+                    self.coin = Some(convert(r[1].to_string())?);
+                }
+                "PLAYER_1_UP_KEY" => {
+                    self.up = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_DOWN_KEY" => {
+                    self.down = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_LEFT_KEY" => {
+                    self.left = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_RIGHT_KEY" => {
+                    self.right = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_BUTTON_1_KEY" => {
+                    self.button1 = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_BUTTON_2_KEY" => {
+                    self.button2 = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_BUTTON_3_KEY" => {
+                    self.button3 = convert(r[1].to_string())?;
+                }
+                "PLAYER_1_BUTTON_4_KEY" => {
+                    self.button4 = convert(r[1].to_string())?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
     pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
         if self.test.is_none() {
             return Err(anyhow!("Cannot find test key"));

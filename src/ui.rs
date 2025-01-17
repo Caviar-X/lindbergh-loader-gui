@@ -1,9 +1,7 @@
 use crate::config::{GameRegion, GpuType, LindberghColor, LindberghConfig};
 use crate::games::{GameData, GameTitle, GameType};
 use anyhow::Ok;
-use eframe::egui::{
-    self, Color32, Key, Modal, RichText
-};
+use eframe::egui::{self, Color32, Key, Modal, RichText};
 use rfd::FileDialog;
 use std::fs::{self, File};
 use std::io::Write;
