@@ -1,10 +1,13 @@
-use crate::config::{GameRegion, GpuType, LindberghColor, LindberghConfig};
-use crate::games::{GameData, GameTitle, GameType};
-use anyhow::Ok;
+use crate::config::{
+    self, GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
+};
+use crate::games::{self, GameData, GameTitle, GameType};
+use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use rfd::FileDialog;
-use std::fs::{self, File, read_to_string};
-use std::io::Write;
+use std::fs::{self, remove_file};
+use std::iter::repeat;
+
 enum AppState {
     MainPage,
     ConfigureMapping,
@@ -31,13 +34,13 @@ impl Default for AppState {
 }
 #[derive(Clone)]
 pub struct SharedState {
-    pub new_game_modify: i32,
+    pub new_game_modify: Option<usize>,
     pub shared_text: Vec<String>,
 }
 impl Default for SharedState {
     fn default() -> Self {
         Self {
-            new_game_modify: -1,
+            new_game_modify: None,
             shared_text: vec![String::new(); 100],
         }
     }
@@ -53,7 +56,11 @@ impl SharedState {
         if lconf.enable_fps_limiter {
             lconf.limit_fps_target = self.shared_text[2].parse()?;
         }
-        Ok(())
+        if lconf.exe_path.is_empty() {
+            Err(anyhow!("Unspecified executable path"))
+        } else {
+            Ok(())
+        }
     }
 }
 pub struct LoaderApp {
@@ -83,10 +90,10 @@ impl LoaderApp {
         });
     }
     fn get_game(&self) -> &GameData {
-        &self.game_library[self.shared_state.new_game_modify as usize]
+        &self.game_library[self.shared_state.new_game_modify.unwrap()]
     }
     fn get_game_mut(&mut self) -> &mut GameData {
-        &mut self.game_library[self.shared_state.new_game_modify as usize]
+        &mut self.game_library[self.shared_state.new_game_modify.unwrap()]
     }
     fn get_config(&self) -> &LindberghConfig {
         &self.get_game().config
@@ -158,36 +165,17 @@ impl LoaderApp {
     }
     fn game_library_update(&mut self) {
         if self.game_library.is_empty() {
-            let buf = read_to_string("./config/exe_paths.conf");
-            if let Err(e) = buf {
+            let r = executable_path::get_list();
+            if let Err(e) = r {
                 self.set_modal(
-                    format!("Unable to read ./config/exe_paths.conf,cause:\n{}\nConfig stored cannot be displayed",e),
+                    format!(
+                        "Error occurred while reading ./config/exe_paths.conf:\n{}",
+                        e
+                    ),
                     ModalStatus::Error,
                 );
-            } else {
-                for (cnt, i) in buf.unwrap().lines().enumerate() {
-                    if i.starts_with("#") || i.trim().is_empty() {
-                        continue;
-                    }
-                    let a = i.split_once(char::is_whitespace);
-                    if a.is_none() {
-                        self.set_modal(
-                            format!(
-                                "Invaild argument at ./config/exe_paths.conf on line {}",
-                                cnt + 1
-                            ),
-                            ModalStatus::Error,
-                        );
-                        return;
-                    }
-                    let (name, _) = a.unwrap();
-                    for j in GameTitle::all_variants() {
-                        if format!("{:?}", j) == name {
-                            self.game_library.push(j.into_gamedata());
-                            break;
-                        }
-                    }
-                }
+            } else if let Result::Ok(e) = r {
+                self.game_library = e;
             }
         }
     }
@@ -209,14 +197,14 @@ impl LoaderApp {
                 } else {
                     ui.image(format!(
                         "file://./assets/{}.png",
-                        self.current_game.into_gamedata().game_id
+                        self.current_game.as_gamedata().game_id
                     ));
                 }
                 ui.separator();
                 egui::Grid::new("main page grid")
                     .num_columns(2)
                     .show(ui, |ui| {
-                        let curr_data: GameData = self.current_game.into_gamedata();
+                        let curr_data: GameData = self.current_game.as_gamedata();
                         ui.strong("Game:");
                         let s = &curr_data.game_title;
                         if s.len() >= 25 {
@@ -232,8 +220,7 @@ impl LoaderApp {
                         ui.label(&curr_data.game_dvp);
                         ui.end_row();
                         ui.strong("Status:");
-                        if !curr_data.game_status && curr_data.game_title == String::from("Unkown")
-                        {
+                        if !curr_data.game_status && curr_data.game_title == *"Unkown" {
                             ui.label("Unkown");
                         } else if !curr_data.game_status {
                             ui.colored_label(Color32::from_rgb(255, 0, 0), "Not Working");
@@ -257,24 +244,23 @@ impl LoaderApp {
                             if ui
                                 .button(RichText::new("Configure Game").size(15.0))
                                 .clicked()
+                                && self.current_game != GameTitle::Unknown
                             {
-                                if self.current_game != GameTitle::Unknown {
-                                    self.app_state = AppState::ConfigureGame;
-                                }
+                                self.app_state = AppState::ConfigureGame;
                             }
                             ui.end_row();
                             if ui
                                 .button(RichText::new("Configure Mapping").size(15.0))
                                 .clicked()
+                                && self.current_game != GameTitle::Unknown
                             {
-                                if self.current_game != GameTitle::Unknown {
-                                    self.app_state = AppState::ConfigureMapping;
-                                }
+                                self.app_state = AppState::ConfigureMapping;
                             }
                             ui.end_row();
                             if ui
                                 .button(RichText::new("Run the game").strong().size(15.0))
                                 .clicked()
+                                && self.current_game != GameTitle::Unknown
                             {
                                 self.set_modal("cannot lah", ModalStatus::Error);
                             }
@@ -282,6 +268,7 @@ impl LoaderApp {
                             if ui
                                 .button(RichText::new("Run Test").strong().size(15.0))
                                 .clicked()
+                                && self.current_game != GameTitle::Unknown
                             {
                                 self.set_modal("Placeholder", ModalStatus::Info);
                             }
@@ -294,17 +281,39 @@ impl LoaderApp {
                                         .size(15.0),
                                 )
                                 .clicked()
+                                && self.current_game != GameTitle::Unknown
                             {
                                 let mut del: i32 = -1;
                                 for (cnt, i) in self.game_library.iter().enumerate() {
-                                    if self.current_game.into_gamedata().game_title == i.game_title
-                                    {
+                                    if self.current_game.as_gamedata().game_title == i.game_title {
                                         del = cnt as i32;
                                     }
                                 }
                                 if del >= 0 {
                                     self.game_library.remove(del as usize);
                                 }
+                                if let Err(e) = executable_path::remove_exe_path(&self.current_game)
+                                {
+                                    self.set_modal(
+                                        format!(
+                                            "Unable to delete game {} because:\n{}",
+                                            self.current_game, e
+                                        ),
+                                        ModalStatus::Error,
+                                    );
+                                } else if let Err(e) =
+                                    remove_file(format!("./config/{:?}.conf", self.current_game))
+                                {
+                                    self.set_modal(
+                                        format!(
+                                            "Unable to delete game {} because:\n{}",
+                                            self.current_game, e
+                                        ),
+                                        ModalStatus::Error,
+                                    );
+                                }
+
+                                self.current_game = GameTitle::default();
                             }
                         },
                     );
@@ -353,18 +362,17 @@ impl LoaderApp {
             });
     }
     fn new_game_ui(&mut self, ctx: &egui::Context) {
-        if self.shared_state.new_game_modify == -1 {
+        if self.shared_state.new_game_modify.is_none() {
             for (cnt, i) in self.game_library.iter().enumerate() {
                 if i == &GameData::default() {
-                    self.shared_state.new_game_modify = cnt as i32;
+                    self.shared_state.new_game_modify = Some(cnt);
                 }
             }
-            if self.shared_state.new_game_modify == -1 {
+            if self.shared_state.new_game_modify.is_none() {
                 self.game_library.push(GameData::default());
-                self.shared_state.new_game_modify = (self.game_library.len() - 1) as i32;
+                self.shared_state.new_game_modify = Some(self.game_library.len() - 1);
             }
         }
-        let modf_pos: usize = self.shared_state.new_game_modify as usize;
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical_centered(|ui| {
@@ -380,9 +388,9 @@ impl LoaderApp {
                             if !self
                                 .game_library
                                 .iter()
-                                .map(|x| GameTitle::from(x))
+                                .map(GameTitle::from)
                                 .collect::<Vec<GameTitle>>()
-                                .contains(&i)
+                                .contains(i)
                             {
                                 ui.selectable_value(
                                     &mut self.current_game,
@@ -400,18 +408,21 @@ impl LoaderApp {
                         && !self
                             .game_library
                             .iter()
-                            .map(|x| GameTitle::from(x))
+                            .map(GameTitle::from)
                             .collect::<Vec<GameTitle>>()
                             .contains(&self.current_game)
                     {
-                        self.game_library[modf_pos].assign_title(&self.current_game);
-                        self.shared_state.new_game_modify = -1;
+                        // make compiler happy
+                        self.game_library[self.shared_state.new_game_modify.unwrap()]
+                            .assign_title(&self.current_game);
+                        self.shared_state.new_game_modify = None;
                         self.app_state = AppState::MainPage;
                     }
                     if ui.button("Cancel").clicked() {
-                        self.game_library.remove(modf_pos);
+                        self.game_library
+                            .remove(self.shared_state.new_game_modify.unwrap());
                         self.current_game = GameTitle::Unknown;
-                        self.shared_state.new_game_modify = -1;
+                        self.shared_state.new_game_modify = None;
                         self.app_state = AppState::MainPage;
                     }
                 });
@@ -421,10 +432,10 @@ impl LoaderApp {
     fn configure_game_ui(&mut self, ctx: &egui::Context) {
         for (cnt, i) in self.game_library.iter().enumerate() {
             if GameTitle::from(i) == self.current_game {
-                self.shared_state.new_game_modify = cnt as i32;
+                self.shared_state.new_game_modify = Some(cnt);
             }
         }
-        if self.shared_state.new_game_modify == -1 {
+        if self.shared_state.new_game_modify.is_none() {
             self.set_modal(
                 "Oops!\nLooks like we don't know which game you're configuring.",
                 ModalStatus::Error,
@@ -612,7 +623,7 @@ impl LoaderApp {
                                         ui.selectable_value(
                                             &mut self.get_config_mut().gpu_vendor,
                                             i.clone(),
-                                            (&i).to_string(),
+                                            (i).to_string(),
                                         );
                                     }
                                 });
@@ -687,7 +698,7 @@ impl LoaderApp {
                                 ui.end_row();
                             }
                             ui.label("Lindbergh color:");
-                            egui::ComboBox::from_id_salt("color cbb")
+                            egui::ComboBox::from_id_salt("color combobox")
                                 .selected_text(self.get_config().lindbergh_color.to_string())
                                 .show_ui(ui, |ui| {
                                     for i in [
@@ -700,7 +711,7 @@ impl LoaderApp {
                                         ui.selectable_value(
                                             &mut self.get_config_mut().lindbergh_color,
                                             i.clone(),
-                                            (&i).to_string(),
+                                            i.to_string(),
                                         );
                                     }
                                 });
@@ -718,31 +729,29 @@ impl LoaderApp {
                             format!("Error occurred while parsing data \"{}\"", e),
                             ModalStatus::Error,
                         );
+                    } else if let Err(e) = self
+                        .get_config()
+                        .write_to_lindbergh_conf(&self.current_game)
+                    {
+                        self.set_modal(
+                            format!("Error occurred while writing data \"{}\"", e),
+                            ModalStatus::Error,
+                        );
                     } else {
-                        if let Err(e) = self
-                            .get_config()
-                            .write_to_lindbergh_conf(&self.current_game)
-                        {
-                            self.set_modal(
-                                format!("Error occurred while writing data \"{}\"", e),
-                                ModalStatus::Error,
-                            );
-                        } else {
-                            self.set_modal(
-                                format!(
-                                    "Configuration successfully saved into {}",
-                                    format!("./config/{:?}.conf", self.current_game)
-                                ),
-                                ModalStatus::Info,
-                            );
-                            self.shared_state.new_game_modify = -1;
-                            self.shared_state.shared_text = vec![String::new(); 100];
-                            self.app_state = AppState::MainPage;
-                        }
+                        self.set_modal(
+                            format!(
+                                "Configuration successfully saved into ./config/{:?}.conf",
+                                self.current_game
+                            ),
+                            ModalStatus::Info,
+                        );
+                        self.shared_state.new_game_modify = None;
+                        self.shared_state.shared_text = vec![String::new(); 100];
+                        self.app_state = AppState::MainPage;
                     }
                 }
                 if ui.button("Cancel").clicked() {
-                    self.shared_state.new_game_modify = -1;
+                    self.shared_state.new_game_modify = None;
                     self.shared_state.shared_text = vec![String::new(); 100];
                     self.app_state = AppState::MainPage;
                 }
@@ -750,20 +759,208 @@ impl LoaderApp {
         });
     }
     fn configure_mapping_ui(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {});
+        for (cnt, i) in self.game_library.iter().enumerate() {
+            if GameTitle::from(i) == self.current_game {
+                self.shared_state.new_game_modify = Some(cnt);
+            }
+        }
+        if self.shared_state.new_game_modify.is_none() {
+            self.set_modal(
+                "Oops!\nLooks like we don't know which game you're configuring.",
+                ModalStatus::Error,
+            );
+            self.app_state = AppState::MainPage;
+            return;
+        }
+        // TODO: KILL THIS WITH FIRE
+        let ohno = self.game_library[self.shared_state.new_game_modify.unwrap()]
+            .config
+            .input_method
+            .clone();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui_alignments::top_horizontal(ui, |ui| {
+                ui.heading(RichText::new("Configure KeyMap").size(35.0).strong());
+            });
+            ui.separator();
+            egui_alignments::top_horizontal(ui, |ui| {
+                egui::Grid::new("configure mapping grid").show(ui, |ui| {
+                    ui.label("Input Method");
+                    // I've committed a sin,please don't kill me ferris
+                    egui::ComboBox::from_id_salt("configure mapping combobox")
+                        .selected_text(format!("{:?}", ohno))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.get_config_mut().input_method,
+                                ohno.clone().into_both(),
+                                "Both",
+                            );
+                            ui.selectable_value(
+                                &mut self.get_config_mut().input_method,
+                                ohno.clone().into_sdl(),
+                                "SDL/X11",
+                            );
+                            ui.selectable_value(
+                                &mut self.get_config_mut().input_method,
+                                ohno.clone().into_evdev(),
+                                "Evdev",
+                            );
+                        });
+                    let ohno = self.game_library[self.shared_state.new_game_modify.unwrap()]
+                        .config
+                        .input_method
+                        .clone();
+                    ui.end_row();
+                    ui.end_row();
+                    if self.get_config().input_method.has_sdl() {
+                        let sdl_keymap = ohno.get_sdlkeymap().unwrap();
+                        let mut_sdl_keymap = self
+                            .get_config_mut()
+                            .input_method
+                            .get_sdlkeymap_mut()
+                            .unwrap();
+                        ui.strong("SDL/X11 Keymap:");
+                        ui.end_row();
+                        ui.label("Test Key:");
+                        if ui.button(sdl_keymap.test.unwrap().name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.test = Some(*k);
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Start Key:");
+                        if ui.button(sdl_keymap.start.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.start = *k;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Service Key:");
+                        if ui.button(sdl_keymap.service.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.service = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Coin Key:");
+                        if ui.button(sdl_keymap.coin.unwrap().name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.coin = Some(*k);
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Up Key:");
+                        if ui.button(sdl_keymap.up.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.up = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Down Key:");
+                        if ui.button(sdl_keymap.down.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.down = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Left Key:");
+                        if ui.button(sdl_keymap.left.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.left = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Right Key:");
+                        if ui.button(sdl_keymap.right.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.right = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Button 1 Key:");
+                        if ui.button(sdl_keymap.button1.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.button1 = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Button 2 Key:");
+                        if ui.button(sdl_keymap.button2.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.button2 = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Button 3 Key:");
+                        if ui.button(sdl_keymap.button3.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.button3 = *k;
+                                    break;
+                                }
+                            }
+                        }
+                        ui.end_row();
+                        ui.label("Player 1 Button 4 Key:");
+                        if ui.button(sdl_keymap.button4.name()).hovered() {
+                            for k in Key::ALL {
+                                if ctx.input(|i| i.key_down(*k)) {
+                                    mut_sdl_keymap.button4 = *k;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    ui.end_row();
+                    if self.get_config().input_method.has_evdev() {
+                        let evdev_keymap = ohno.get_evdev().unwrap();
+                        let mut_evdev_keymap = self
+                            .get_config_mut()
+                            .input_method
+                            .get_evdev_mut()
+                            .unwrap();
+                        ui.strong("Evdev Keymap:");
+                        ui.end_row();
+                        ui.label("Test Key:");
+                        ui.text_edit_singleline(mut_evdev_keymap.player1.test.as_mut().unwrap());
+                        ui.end_row();
+                        ui.label("Player 1 Start Key:");
+                        ui.text_edit_singleline(&mut mut_evdev_keymap.player1.start);
+                    }
+                });
+            });
+        });
     }
 }
 impl eframe::App for LoaderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // TODO: Find a way to report error
-        if !fs::exists("./config").unwrap() {
-            fs::create_dir("./config").unwrap();
-        }
-        if !fs::exists("./config/exe_paths.conf").unwrap() {
-            let mut f = File::create("./config/exe_paths.conf").unwrap();
-            writeln!(f, "# This file is generated by lindbergh-loader-gui").unwrap();
-            writeln!(f, "# Do not modify it unless you know what you're doing").unwrap();
-        }
         self.modal_update(ctx);
         self.game_library_update();
         match self.app_state {
@@ -786,7 +983,7 @@ impl eframe::App for LoaderApp {
 // NOTE: F13~F35 will not be mapped because I don't know in which universe keyboard has these keys
 
 pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
-    let zero = key.name().chars().nth(0).unwrap();
+    let zero = key.name().chars().next().unwrap();
     if zero.is_numeric() {
         if zero == '0' {
             return Some(19);
@@ -822,7 +1019,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
             'B' => Some(56),
             'N' => Some(57),
             'M' => Some(58),
-            _ => None, // If the character is not in the list
+            _ => None,
         };
     }
     if zero == 'F' && key.name().len() > 1 {
@@ -842,7 +1039,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
             _ => None,
         };
     }
-    return match key {
+    match key {
         Key::Minus => Some(20),
         Key::Equals => Some(21),
         Key::Backspace => Some(22),
@@ -877,7 +1074,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
         Key::Paste => Some(144),
         Key::Cut => Some(145),
         _ => None,
-    };
+    }
 }
 // Thanks chatgpt
 pub fn egui_keycode_to_key(keycode: u32) -> Option<egui::Key> {

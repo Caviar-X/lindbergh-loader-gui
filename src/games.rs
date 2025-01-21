@@ -1,5 +1,5 @@
 use crate::config::LindberghConfig;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameType {
@@ -31,9 +31,6 @@ impl PartialEq for GameData {
             && self.game_dvp == other.game_dvp
             && self.game_status == other.game_status
     }
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
-    }
 }
 impl Default for GameData {
     fn default() -> Self {
@@ -50,7 +47,7 @@ impl Default for GameData {
 }
 impl GameData {
     pub fn assign_title(&mut self, title: &GameTitle) {
-        let assign_data: GameData = title.into_gamedata();
+        let assign_data: GameData = title.as_gamedata();
         self.game_type = assign_data.game_type;
         self.not_working_on_ati = assign_data.not_working_on_ati;
         self.game_title = assign_data.game_title;
@@ -205,7 +202,7 @@ impl<T: Into<String>> From<T> for GameTitle {
     }
 }
 impl GameTitle {
-    pub fn into_gamedata(&self) -> GameData {
+    pub fn as_gamedata(&self) -> GameData {
         match self {
             Self::Segaboot
             | Self::Segaboot_2_4
@@ -523,13 +520,14 @@ impl GameTitle {
         ]
     }
 }
-impl ToString for GameTitle {
-    fn to_string(&self) -> String {
-        format!("{:?}", self).replace("_", " ")
+impl Display for GameTitle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).replace("_", " "))
     }
 }
-impl Into<GameTitle> for GameData {
-    fn into(self) -> GameTitle {
-        GameTitle::from(self.game_title)
+
+impl From<GameData> for GameTitle {
+    fn from(value: GameData) -> Self {
+        GameTitle::from(value.game_title)
     }
 }

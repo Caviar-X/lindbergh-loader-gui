@@ -6,8 +6,7 @@ edition = "2024"
 [dependencies]
 eframe = "0.30.0"
 egui_extras = { version = "*", features = ["all_loaders","image"] }
-env_logger = { version = "*", features = ["auto-color","humantime"] }
-log = "0.4.24"
 egui_alignments = "0.3.1"
 rfd = "0.15.2"
 anyhow = "1.0.95"
+

@@ -5,7 +5,7 @@ use crate::{
 use anyhow::{Ok, anyhow};
 use eframe::egui;
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     fs::{self, File, read_to_string},
     io::Write,
     path::Path,
@@ -41,7 +41,7 @@ pub enum GpuType {
     Unknown = 5,
 }
 impl GpuType {
-    fn into_i32(&self) -> i32 {
+    fn as_i32(&self) -> i32 {
         match self {
             Self::AutoDetect => 0,
             Self::Nvidia => 1,
@@ -88,7 +88,8 @@ impl PrimevalHuntMode {
     }
 }
 // WARNING: Do not directly use this type
-pub struct _Keymap<T> {
+#[derive(Clone, PartialEq)]
+pub struct _Keymap<T: Clone + PartialEq> {
     // NOTE: By defualt,we follow Player1's test_key
     pub test: Option<T>,
     pub service: T,
@@ -111,6 +112,7 @@ pub struct _Keymap<T> {
 pub type SdlKeymap = _Keymap<egui::Key>;
 pub type EvdevKeymap = _Keymap<String>;
 
+#[derive(Clone, PartialEq)]
 pub struct _EvdevInput {
     pub player1: EvdevKeymap,
     pub player2: EvdevKeymap,
@@ -118,10 +120,10 @@ pub struct _EvdevInput {
     pub analogue_deadzones: [(u32, u32, u32); 8],
 }
 impl _EvdevInput {
-    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &str) -> anyhow::Result<()> {
         for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.len() == 0 {
+            if r[0] == "#" || r.is_empty() {
                 continue;
             }
             if r.len() < 2 {
@@ -354,24 +356,24 @@ impl _EvdevInput {
             "PLAYER_2_BUTTON_8 {}",
             self.player2.button8.as_ref().unwrap()
         )?;
-        for (cnt, i) in (&self.analogues).iter().enumerate() {
+        for (cnt, i) in self.analogues.iter().enumerate() {
             writeln!(f, "ANALOGUE_{} {}", cnt + 1, i)?;
         }
-        for (cnt, i) in (&self.analogue_deadzones).iter().enumerate() {
+        for (cnt, i) in self.analogue_deadzones.iter().enumerate() {
             writeln!(f, "ANALOGUE_DEADZONE_{} {} {} {}", cnt + 1, i.0, i.1, i.2)?;
         }
         Ok(())
     }
 }
 impl SdlKeymap {
-    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
-        fn result_keycode_to_key(s: String) -> anyhow::Result<egui::Key> {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &str) -> anyhow::Result<()> {
+        fn result_keycode_to_key(s: &str) -> anyhow::Result<egui::Key> {
             let r = s.parse::<u32>()?;
             egui_keycode_to_key(r).ok_or(anyhow!("Undefined Keycode {}", r))
         }
         for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.len() == 0 {
+            if r[0] == "#" || r.is_empty() {
                 continue;
             }
             if r.len() < 2 {
@@ -379,40 +381,40 @@ impl SdlKeymap {
             }
             match r[0] {
                 "TEST_KEY" => {
-                    self.test = Some(result_keycode_to_key(r[1].to_string())?);
+                    self.test = Some(result_keycode_to_key(r[1])?);
                 }
                 "PLAYER_1_START_KEY" => {
-                    self.start = result_keycode_to_key(r[1].to_string())?;
+                    self.start = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_SERVICE_KEY" => {
-                    self.service = result_keycode_to_key(r[1].to_string())?;
+                    self.service = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_COIN_KEY" => {
-                    self.coin = Some(result_keycode_to_key(r[1].to_string())?);
+                    self.coin = Some(result_keycode_to_key(r[1])?);
                 }
                 "PLAYER_1_UP_KEY" => {
-                    self.up = result_keycode_to_key(r[1].to_string())?;
+                    self.up = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_DOWN_KEY" => {
-                    self.down = result_keycode_to_key(r[1].to_string())?;
+                    self.down = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_LEFT_KEY" => {
-                    self.left = result_keycode_to_key(r[1].to_string())?;
+                    self.left = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_RIGHT_KEY" => {
-                    self.right = result_keycode_to_key(r[1].to_string())?;
+                    self.right = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_BUTTON_1_KEY" => {
-                    self.button1 = result_keycode_to_key(r[1].to_string())?;
+                    self.button1 = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_BUTTON_2_KEY" => {
-                    self.button2 = result_keycode_to_key(r[1].to_string())?;
+                    self.button2 = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_BUTTON_3_KEY" => {
-                    self.button3 = result_keycode_to_key(r[1].to_string())?;
+                    self.button3 = result_keycode_to_key(r[1])?;
                 }
                 "PLAYER_1_BUTTON_4_KEY" => {
-                    self.button4 = result_keycode_to_key(r[1].to_string())?;
+                    self.button4 = result_keycode_to_key(r[1])?;
                 }
                 _ => {}
             }
@@ -489,19 +491,89 @@ impl SdlKeymap {
     }
 }
 // NOTE: Use this in other module only
+#[derive(Clone, PartialEq)]
 pub enum Keymap {
-    // SDL/X11 input does not support second player
-    Sdl(_Keymap<egui::Key>),
+    // SDL/X11 input does not support second player by far
+    // NOTE: This should be changed when lindbergh-loader supports two players
+    Sdl(SdlKeymap),
     Evdev(_EvdevInput),
-    Both(_Keymap<egui::Key>, _EvdevInput),
+    Both(SdlKeymap, _EvdevInput),
+}
+impl Debug for Keymap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sdl(_) => write!(f, "SDL/X11"),
+            Self::Evdev(_) => write!(f, "Evdev"),
+            Self::Both(_, _) => write!(f, "Both"),
+        }
+    }
 }
 impl Keymap {
-    fn into_i32(&self) -> i32 {
+    fn as_i32(&self) -> i32 {
         match self {
             Self::Sdl(_) => 1,
             Self::Evdev(_) => 2,
             Self::Both(_, _) => 0,
         }
+    }
+    // use this before check
+    pub fn get_sdlkeymap(&self) -> Option<&SdlKeymap> {
+        match self {
+            Self::Sdl(s) => Some(s),
+            Self::Both(s, _) => Some(s),
+            _ => None,
+        }
+    }
+    pub fn get_sdlkeymap_mut(&mut self) -> Option<&mut SdlKeymap> {
+        match self {
+            Self::Sdl(s) => Some(s),
+            Self::Both(s, _) => Some(s),
+            _ => None,
+        }
+    }
+    pub fn get_evdev(&self) -> Option<&_EvdevInput> {
+        match self {
+            Self::Both(_, e) => Some(e),
+            Self::Evdev(e) => Some(e),
+            _ => None,
+        }
+    }
+    pub fn get_evdev_mut(&mut self) -> Option<&mut _EvdevInput> {
+        match self {
+            Self::Both(_, e) => Some(e),
+            Self::Evdev(e) => Some(e),
+            _ => None,
+        }
+    }
+    pub fn into_both(self) -> Self {
+        match self {
+            Self::Sdl(s) => Self::Both(s, _EvdevInput::default()),
+            Self::Evdev(e) => Self::Both(SdlKeymap::default(), e),
+            Self::Both(_, _) => self,
+        }
+    }
+    pub fn into_sdl(self) -> Self {
+        match self {
+            Self::Sdl(_) => self,
+            Self::Evdev(_) => Self::Sdl(SdlKeymap::default()),
+            Self::Both(s, _) => Self::Sdl(s),
+        }
+    }
+    pub fn into_evdev(self) -> Self {
+        match self {
+            Self::Sdl(_) => Self::Evdev(_EvdevInput::default()),
+            Self::Evdev(_) => self,
+            Self::Both(_, e) => Self::Evdev(e),
+        }
+    }
+    pub fn has_both(&self) -> bool {
+        matches!(self, Keymap::Both(_, _))
+    }
+    pub fn has_sdl(&self) -> bool {
+        matches!(self, Keymap::Sdl(_)) || self.has_both()
+    }
+    pub fn has_evdev(&self) -> bool {
+        matches!(self, Keymap::Evdev(_)) || self.has_both()
     }
     pub fn write_to_lindbergh_conf(&self, f: &mut File) -> anyhow::Result<()> {
         match self {
@@ -514,10 +586,10 @@ impl Keymap {
         }
         Ok(())
     }
-    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &str) -> anyhow::Result<()> {
         for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.len() == 0 {
+            if r[0] == "#" || r.is_empty() {
                 continue;
             }
             if r.len() < 2 {
@@ -700,31 +772,11 @@ impl Default for LindberghConfig {
 impl LindberghConfig {
     pub fn write_to_lindbergh_conf(&self, current_title: &GameTitle) -> anyhow::Result<()> {
         let path = format!("./config/{:?}.conf", current_title);
-        let buf = fs::read_to_string("./config/exe_paths.conf")?;
         if !fs::exists(&path)? {
             File::create_new(&path)?;
         }
-        let mut f = File::options().write(true).open(&path)?;
-        let mut e = File::options()
-            .write(true)
-            .open("./config/exe_paths.conf")?;
-        if buf.lines().filter(|x| !x.starts_with("#")).count() == 0 {
-            writeln!(e, "# This file is generated by lindbergh-loader-gui")?;
-            writeln!(
-                e,
-                "# Do not make any changes unless you know what you're doing"
-            )?;
-            writeln!(e, "{:?} {}", current_title, self.exe_path)?;
-        } else {
-            for i in buf.lines() {
-                if i.contains(&format!("{:?}", current_title)) {
-                    writeln!(e, "{:?} {}", current_title, self.exe_path)?;
-                } else {
-                    writeln!(e, "{}", i)?;
-                }
-            }
-        }
-
+        let mut f = File::options().write(true).truncate(true).open(&path)?;
+        executable_path::add_exe_path(current_title, &self.exe_path)?;
         writeln!(f, "# This file is generated by lindbergh-loader-gui")?;
         writeln!(
             f,
@@ -733,7 +785,7 @@ impl LindberghConfig {
         writeln!(f, "WIDTH {}", self.window_size.0)?;
         writeln!(f, "HEIGHT {}", self.window_size.1)?;
         writeln!(f, "FULLSCREEN {}", self.fullscreen as i32)?;
-        writeln!(f, "INPUT_MODE {}", self.input_method.into_i32())?;
+        writeln!(f, "INPUT_MODE {}", self.input_method.as_i32())?;
         writeln!(f, "NO_SDL {}", self.disable_sdl as i32)?;
         writeln!(f, "REGION {}", self.game_region)?;
         writeln!(f, "FREEPLAY {}", self.freeplay as i32)?;
@@ -746,7 +798,7 @@ impl LindberghConfig {
         writeln!(f, "SERIAL_2_PATH {}", self.serial_port2)?;
         writeln!(f, "SRAM_PATH {}", self.sram_path)?;
         writeln!(f, "EEPROM_PATH {}", self.eeprom_path)?;
-        writeln!(f, "GPU_VENDOR {}", self.gpu_vendor.into_i32())?;
+        writeln!(f, "GPU_VENDOR {}", self.gpu_vendor.as_i32())?;
         writeln!(f, "DEBUG_MSGS {}", self.debug_message as i32)?;
         writeln!(f, "BORDER_ENABLED {}", self.border_enabled as i32)?;
         writeln!(
@@ -792,17 +844,17 @@ impl LindberghConfig {
         self.input_method.write_to_lindbergh_conf(&mut f)?;
         Ok(())
     }
-    pub fn read_from_lindbergh_conf(&mut self, buf: &String) -> anyhow::Result<()> {
+    pub fn read_from_lindbergh_conf(&mut self, buf: &str) -> anyhow::Result<()> {
         fn result_i32_to_bool(value: i32, line: usize) -> anyhow::Result<bool> {
             i32_to_bool(value).ok_or(anyhow!(
                 "Invaild value at line {},should be only 1 or 0",
                 line
             ))
         }
-        self.input_method.read_from_lindbergh_conf(&buf)?;
+        self.input_method.read_from_lindbergh_conf(buf)?;
         for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.len() == 0 {
+            if r[0] == "#" || r.is_empty() {
                 continue;
             }
             if r.len() < 2 {
@@ -1020,5 +1072,82 @@ impl LindberghConfig {
         let path = format!("./config/{:?}.conf", current_title);
         self.read_from_lindbergh_conf_by_path(path)?;
         Ok(())
+    }
+}
+
+pub mod executable_path {
+    use crate::games::{GameData, GameTitle};
+    use anyhow::*;
+    use std::fs::{File, read_to_string};
+    use std::io::Write;
+    pub fn add_exe_path(current_title: &GameTitle, exe_path: impl ToString) -> anyhow::Result<()> {
+        let buf = read_to_string("./config/exe_paths.conf")?;
+        let mut e = File::options()
+            .write(true)
+            .open("./config/exe_paths.conf")?;
+        if buf.lines().filter(|x| !x.starts_with("#")).count() == 0 {
+            writeln!(e, "# This file is generated by lindbergh-loader-gui")?;
+            writeln!(
+                e,
+                "# Do not make any changes unless you know what you're doing"
+            )?;
+            writeln!(e, "{:?} {}", current_title, exe_path.to_string())?;
+        } else {
+            for i in buf.lines() {
+                if i.contains(&format!("{:?}", current_title)) {
+                    writeln!(e, "{:?} {}", current_title, exe_path.to_string())?;
+                } else {
+                    writeln!(e, "{}", i)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    pub fn remove_exe_path(current_title: &GameTitle) -> anyhow::Result<()> {
+        let buf = read_to_string("./config/exe_paths.conf")?;
+        let mut e = File::options()
+            .truncate(true)
+            .write(true)
+            .open("./config/exe_paths.conf")?;
+        for i in buf.lines() {
+            if !i.contains(&format!("{:?}", current_title)) {
+                writeln!(e, "{}", i)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn get_path(current_title: &GameTitle) -> anyhow::Result<String> {
+        let buf = read_to_string("./config/exe_paths.conf")?;
+        for (cnt, i) in buf.lines().enumerate() {
+            let (name, path) = i.split_once(char::is_whitespace).ok_or(anyhow!(
+                "Invaild executable path argument on line {}",
+                cnt + 1
+            ))?;
+            if format!("{:?}", current_title) == name {
+                return Ok(path.into());
+            }
+        }
+        Err(anyhow!("Unable to find path"))
+    }
+    pub fn get_list() -> anyhow::Result<Vec<GameData>> {
+        let buf = read_to_string("./config/exe_paths.conf")?;
+        let mut game_library: Vec<GameData> = Vec::new();
+        for (cnt, i) in buf.lines().enumerate() {
+            if i.starts_with("#") || i.trim().is_empty() {
+                continue;
+            }
+
+            let (name, _) = i.split_once(char::is_whitespace).ok_or(anyhow!(
+                "Invaild executable path argument on line {}",
+                cnt + 1
+            ))?;
+            for j in GameTitle::all_variants() {
+                if format!("{:?}", j) == name {
+                    game_library.push(j.as_gamedata());
+                    break;
+                }
+            }
+        }
+        Ok(game_library)
     }
 }

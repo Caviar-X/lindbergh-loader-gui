@@ -1,7 +1,8 @@
 use eframe::egui;
 use loader_gui::ui::LoaderApp;
+use std::fs::{self, File};
 fn main() -> eframe::Result {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    // Log to stderr (if you run with `RUST_LOG=debug`).
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/default.png")).unwrap();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -12,6 +13,13 @@ fn main() -> eframe::Result {
             .with_decorations(true),
         ..Default::default()
     };
+    // TODO: Find a way to report error
+    if !fs::exists("./config").unwrap() {
+        fs::create_dir("./config").unwrap();
+    }
+    if !fs::exists("./config/exe_paths.conf").unwrap() {
+        File::create("./config/exe_paths.conf").unwrap();
+    }
     eframe::run_native(
         "Linderbergh loader GUI",
         options,
