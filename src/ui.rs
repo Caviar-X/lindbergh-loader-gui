@@ -1,12 +1,11 @@
 use crate::config::{
-    self, GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
+    GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
 };
-use crate::games::{self, GameData, GameTitle, GameType};
+use crate::games::{GameData, GameTitle, GameType};
 use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use rfd::FileDialog;
 use std::fs::{self, remove_file};
-use std::iter::repeat;
 
 enum AppState {
     MainPage,
@@ -36,12 +35,16 @@ impl Default for AppState {
 pub struct SharedState {
     pub new_game_modify: Option<usize>,
     pub shared_text: Vec<String>,
+    pub temp_config: LindberghConfig,
+    pub first_run: bool,
 }
 impl Default for SharedState {
     fn default() -> Self {
         Self {
             new_game_modify: None,
-            shared_text: vec![String::new(); 100],
+            shared_text: vec![String::new(); 6],
+            temp_config: LindberghConfig::default(),
+            first_run: true,
         }
     }
 }
@@ -445,18 +448,35 @@ impl LoaderApp {
         }
         let cur_game = self.current_game.clone();
         let p = format!("./config/{:?}.conf", cur_game);
-        if fs::exists(&p).unwrap() && self.get_config().exe_path.is_empty() {
-            if let Err(e) = self
-                .get_config_mut()
-                .read_from_lindbergh_conf_by_title(&cur_game)
-            {
+        let mut config = LindberghConfig::default();
+        if fs::exists(&p).unwrap() && self.shared_state.first_run {
+            if let Err(e) = config.read_from_lindbergh_conf_by_title(&cur_game) {
                 self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,cur_game), ModalStatus::Error);
             } else {
-                self.shared_state.shared_text[0] = self.get_config().window_size.0.to_string();
-                self.shared_state.shared_text[1] = self.get_config().window_size.1.to_string();
-                self.shared_state.shared_text[2] = self.get_config().limit_fps_target.to_string();
+                self.shared_state.first_run = false;
             }
         }
+        if self.shared_state.temp_config == LindberghConfig::default() {
+            self.shared_state.temp_config = config;
+            let cl = self.shared_state.temp_config.clone();
+            if ![
+                (640, 480),
+                (800, 600),
+                (1024, 768),
+                (1280, 1024),
+                (800, 480),
+                (1024, 600),
+                (1280, 768),
+                (1360, 768),
+            ]
+            .contains(&cl.window_size)
+            {
+                self.shared_state.shared_text[0] = cl.window_size.0.to_string();
+                self.shared_state.shared_text[1] = cl.window_size.1.to_string();
+            }
+            self.shared_state.shared_text[2] = cl.limit_fps_target.to_string();
+        }
+        let cl = self.shared_state.temp_config.clone();
         egui::CentralPanel::default().show(ctx, |ui| {
             egui_alignments::top_horizontal(ui, |ui| {
                 ui.heading(RichText::new("Configure Game").size(35.0).strong());
@@ -468,23 +488,23 @@ impl LoaderApp {
                     egui_alignments::top_horizontal_wrapped(ui, |ui| {
                         egui::Grid::new("configure game grid").show(ui, |ui| {
                             ui.label("Executable Path:");
-                            if self.get_config().exe_path.len() > 40 {
+                            if cl.exe_path.len() > 40 {
                                 ui.label(format!(
                                     "{}..",
-                                    &(self.get_config().exe_path)
+                                    &(cl.exe_path)
                                         .chars()
                                         .take(48)
                                         .collect::<String>()
                                 ));
                             } else {
-                                ui.label(&self.get_config().exe_path);
+                                ui.label(&cl.exe_path);
                             }
                             if ui.small_button("📁").clicked() {
                                 if let Some(path) = FileDialog::new()
                                     .add_filter("Executable File", &["elf", ""])
                                     .pick_file()
                                 {
-                                    self.get_config_mut().exe_path =
+                                    self.shared_state.temp_config.exe_path =
                                         path.to_string_lossy().to_string();
                                 }
                             }
@@ -497,8 +517,8 @@ impl LoaderApp {
                                 .width(50.0)
                                 .selected_text(format!(
                                     "{}x{}",
-                                    self.get_game().config.window_size.0,
-                                    self.get_game().config.window_size.1
+                                    cl.window_size.0,
+                                    cl.window_size.1
                                 ))
                                 .show_ui(ui, |ui| {
                                     for i in [
@@ -512,7 +532,7 @@ impl LoaderApp {
                                         (1360, 768),
                                     ] {
                                         ui.selectable_value(
-                                            &mut self.get_config_mut().window_size,
+                                            &mut self.shared_state.temp_config.window_size,
                                             i,
                                             format!("{}x{}", i.0, i.1),
                                         );
@@ -526,41 +546,41 @@ impl LoaderApp {
                             ui.text_edit_singleline(&mut self.shared_state.shared_text[1]);
                             ui.end_row();
                             ui.label("Fullscreen:");
-                            ui.checkbox(&mut self.get_config_mut().fullscreen, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.fullscreen, "");
                             ui.end_row();
                             ui.label("Disable SDL:");
-                            ui.checkbox(&mut self.get_config_mut().disable_sdl, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.disable_sdl, "");
                             ui.end_row();
                             ui.label("Reigon:");
                             egui::ComboBox::from_id_salt("reigon combobox")
-                                .selected_text(self.get_config().game_region.to_string())
+                                .selected_text(cl.game_region.to_string())
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
-                                        &mut self.get_config_mut().game_region,
+                                        &mut self.shared_state.temp_config.game_region,
                                         GameRegion::JP,
                                         "JP",
                                     );
                                     ui.selectable_value(
-                                        &mut self.get_config_mut().game_region,
+                                        &mut self.shared_state.temp_config.game_region,
                                         GameRegion::US,
                                         "US",
                                     );
                                     ui.selectable_value(
-                                        &mut self.get_config_mut().game_region,
+                                        &mut self.shared_state.temp_config.game_region,
                                         GameRegion::EX,
                                         "EX",
                                     );
                                 });
                             ui.end_row();
                             ui.label("Freeplay:");
-                            ui.checkbox(&mut self.get_config_mut().freeplay, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.freeplay, "");
                             ui.end_row();
                             ui.label("Emulate JVS:");
-                            ui.checkbox(&mut self.get_config_mut().emulate_jvs, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.emulate_jvs, "");
                             ui.end_row();
                             if !self.get_config().emulate_jvs {
                                 ui.label("Enter serial port:");
-                                ui.text_edit_singleline(&mut self.get_config_mut().jvs_path);
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.jvs_path);
                                 ui.end_row();
                             }
                             if GameTitle::from(self.get_game()) == GameTitle::Lets_Go_Jungle_Special
@@ -568,49 +588,49 @@ impl LoaderApp {
                                     == GameTitle::The_House_Of_The_Dead_4_Special
                             {
                                 ui.label("Emulate Rideboard:");
-                                ui.checkbox(&mut self.get_config_mut().emulate_rideboard, "");
+                                ui.checkbox(&mut self.shared_state.temp_config.emulate_rideboard, "");
                                 if !self.get_config().emulate_rideboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
                                     ui.text_edit_singleline(
-                                        &mut self.get_config_mut().serial_port1,
+                                        &mut self.shared_state.temp_config.serial_port1,
                                     );
                                 }
                                 ui.end_row();
                             }
                             if self.get_game().game_type == Some(GameType::DRIVING) {
                                 ui.label("Emulate driveboard:");
-                                ui.checkbox(&mut self.get_config_mut().emulate_driveboard, "");
+                                ui.checkbox(&mut self.shared_state.temp_config.emulate_driveboard, "");
                                 if !self.get_config().emulate_driveboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
                                     ui.text_edit_singleline(
-                                        &mut self.get_config_mut().serial_port1,
+                                        &mut self.shared_state.temp_config.serial_port1,
                                     );
                                 }
                                 ui.end_row();
                             }
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Emulate motionboard:");
-                                ui.checkbox(&mut self.get_config_mut().emulate_motionboard, "");
+                                ui.checkbox(&mut self.shared_state.temp_config.emulate_motionboard, "");
                                 if !self.get_config().emulate_motionboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
                                     ui.text_edit_singleline(
-                                        &mut self.get_config_mut().serial_port2,
+                                        &mut self.shared_state.temp_config.serial_port2,
                                     );
                                 }
                                 ui.end_row();
                             }
                             ui.label("SRAM path:");
-                            ui.text_edit_singleline(&mut self.get_config_mut().sram_path);
+                            ui.text_edit_singleline(&mut self.shared_state.temp_config.sram_path);
                             ui.end_row();
                             ui.label("EEPROM path:");
-                            ui.text_edit_singleline(&mut self.get_config_mut().eeprom_path);
+                            ui.text_edit_singleline(&mut self.shared_state.temp_config.eeprom_path);
                             ui.end_row();
                             ui.label("GPU Vendor:");
                             egui::ComboBox::from_id_salt("gpuv cbb")
-                                .selected_text(self.get_config().gpu_vendor.to_string())
+                                .selected_text(cl.gpu_vendor.to_string())
                                 .show_ui(ui, |ui| {
                                     for i in [
                                         GpuType::AMD,
@@ -621,7 +641,7 @@ impl LoaderApp {
                                         GpuType::Unknown,
                                     ] {
                                         ui.selectable_value(
-                                            &mut self.get_config_mut().gpu_vendor,
+                                            &mut self.shared_state.temp_config.gpu_vendor,
                                             i.clone(),
                                             (i).to_string(),
                                         );
@@ -629,35 +649,35 @@ impl LoaderApp {
                                 });
                             ui.end_row();
                             ui.label("Show debug message:");
-                            ui.checkbox(&mut self.get_config_mut().debug_message, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.debug_message, "");
                             ui.end_row();
                             if GameTitle::from(self.get_game()) == GameTitle::Hummer
                                 || GameTitle::from(self.get_game()) == GameTitle::Hummer_Extreme
                                 || GameTitle::from(self.get_game()) == GameTitle::Hummer_Extreme_MDX
                             {
                                 ui.label("Hummer Flicker Fix:");
-                                ui.checkbox(&mut self.get_config_mut().hammer_flicker_fix, "");
+                                ui.checkbox(&mut self.shared_state.temp_config.hammer_flicker_fix, "");
                                 ui.end_row();
                             }
                             ui.label("Keep aspect ratio:");
-                            ui.checkbox(&mut self.get_config_mut().keep_aspect_ratio, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.keep_aspect_ratio, "");
                             ui.end_row();
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Glare effect:");
                                 ui.checkbox(
-                                    &mut self.get_config_mut().outrun_lens_glare_enable,
+                                    &mut self.shared_state.temp_config.outrun_lens_glare_enable,
                                     "",
                                 );
                                 ui.end_row();
                             }
                             ui.label("Enable border:");
-                            ui.checkbox(&mut self.get_config_mut().border_enabled, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.border_enabled, "");
                             ui.end_row();
                             if self.get_config().border_enabled {
                                 ui.label("White border:");
                                 ui.add(
                                     egui::Slider::new(
-                                        &mut self.get_config_mut().white_border_percentage,
+                                        &mut self.shared_state.temp_config.white_border_percentage,
                                         0..=100,
                                     )
                                     .suffix("%"),
@@ -666,7 +686,7 @@ impl LoaderApp {
                                 ui.label("Black border:");
                                 ui.add(
                                     egui::Slider::new(
-                                        &mut self.get_config_mut().black_border_percentage,
+                                        &mut self.shared_state.temp_config.black_border_percentage,
                                         0..=100,
                                     )
                                     .suffix("%"),
@@ -674,7 +694,7 @@ impl LoaderApp {
                                 ui.end_row();
                             }
                             ui.label("Enable FPS limiter:");
-                            ui.checkbox(&mut self.get_config_mut().enable_fps_limiter, "");
+                            ui.checkbox(&mut self.shared_state.temp_config.enable_fps_limiter, "");
                             ui.end_row();
                             if self.get_config().enable_fps_limiter {
                                 ui.label("FPS limit:");
@@ -684,7 +704,7 @@ impl LoaderApp {
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Skip cabinet check:");
                                 ui.checkbox(
-                                    &mut self.get_config_mut().skip_outrun_cabinet_check,
+                                    &mut self.shared_state.temp_config.skip_outrun_cabinet_check,
                                     "",
                                 );
                                 ui.end_row();
@@ -694,12 +714,12 @@ impl LoaderApp {
                                     == GameTitle::Taisen_Mahjong_4_Evolution
                             {
                                 ui.label("Mahjong 4 enable all the time:");
-                                ui.checkbox(&mut self.get_config_mut().mj4_enable_all_time, "");
+                                ui.checkbox(&mut self.shared_state.temp_config.mj4_enable_all_time, "");
                                 ui.end_row();
                             }
                             ui.label("Lindbergh color:");
                             egui::ComboBox::from_id_salt("color combobox")
-                                .selected_text(self.get_config().lindbergh_color.to_string())
+                                .selected_text(cl.lindbergh_color.to_string())
                                 .show_ui(ui, |ui| {
                                     for i in [
                                         LindberghColor::BLUE,
@@ -709,7 +729,7 @@ impl LoaderApp {
                                         LindberghColor::YELLOW,
                                     ] {
                                         ui.selectable_value(
-                                            &mut self.get_config_mut().lindbergh_color,
+                                            &mut self.shared_state.temp_config.lindbergh_color,
                                             i.clone(),
                                             i.to_string(),
                                         );
@@ -724,12 +744,14 @@ impl LoaderApp {
             egui_alignments::center_horizontal(ui, |ui| {
                 if ui.button("Save").clicked() {
                     let v = self.shared_state.clone();
-                    if let Err(e) = v.assign_conf(self.get_config_mut()) {
+                    if let Err(e) = v.assign_conf(&mut self.shared_state.temp_config) {
                         self.set_modal(
                             format!("Error occurred while parsing data \"{}\"", e),
                             ModalStatus::Error,
                         );
-                    } else if let Err(e) = self
+                    }
+                    *self.get_config_mut() = self.shared_state.temp_config.clone();
+                    if let Err(e) = self
                         .get_config()
                         .write_to_lindbergh_conf(&self.current_game)
                     {
@@ -738,6 +760,7 @@ impl LoaderApp {
                             ModalStatus::Error,
                         );
                     } else {
+
                         self.set_modal(
                             format!(
                                 "Configuration successfully saved into ./config/{:?}.conf",
@@ -745,15 +768,19 @@ impl LoaderApp {
                             ),
                             ModalStatus::Info,
                         );
-                        self.shared_state.new_game_modify = None;
-                        self.shared_state.shared_text = vec![String::new(); 100];
+                        self.shared_state.shared_text = vec![String::new(); 6];
+                        self.shared_state.temp_config = LindberghConfig::default();
                         self.app_state = AppState::MainPage;
+                        self.shared_state.first_run = true;
+                        self.shared_state.new_game_modify = None;
                     }
                 }
                 if ui.button("Cancel").clicked() {
-                    self.shared_state.new_game_modify = None;
-                    self.shared_state.shared_text = vec![String::new(); 100];
+                    self.shared_state.shared_text = vec![String::new(); 6];
+                    self.shared_state.temp_config = LindberghConfig::default();
                     self.app_state = AppState::MainPage;
+                    self.shared_state.first_run = true;
+                    self.shared_state.new_game_modify = None;
                 }
             });
         });
@@ -772,189 +799,327 @@ impl LoaderApp {
             self.app_state = AppState::MainPage;
             return;
         }
-        // TODO: KILL THIS WITH FIRE
-        let ohno = self.game_library[self.shared_state.new_game_modify.unwrap()]
-            .config
-            .input_method
-            .clone();
+        let mut config = LindberghConfig::default();
+        let p = format!("./config/{:?}.conf", self.current_game);
+        if fs::exists(&p).unwrap() && self.shared_state.first_run {
+            if let Err(e) = config.read_from_lindbergh_conf_by_title(&self.current_game) {
+                self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,self.current_game), ModalStatus::Error);
+            } else {
+                self.shared_state.first_run = false;
+            }
+        }
+        if self.shared_state.temp_config.input_method == Keymap::default() {
+            self.shared_state.temp_config = config;
+        }
+        let cl = self.get_config().input_method.clone();
         egui::CentralPanel::default().show(ctx, |ui| {
             egui_alignments::top_horizontal(ui, |ui| {
                 ui.heading(RichText::new("Configure KeyMap").size(35.0).strong());
             });
             ui.separator();
-            egui_alignments::top_horizontal(ui, |ui| {
-                egui::Grid::new("configure mapping grid").show(ui, |ui| {
-                    ui.label("Input Method");
-                    // I've committed a sin,please don't kill me ferris
-                    egui::ComboBox::from_id_salt("configure mapping combobox")
-                        .selected_text(format!("{:?}", ohno))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.get_config_mut().input_method,
-                                ohno.clone().into_both(),
-                                "Both",
-                            );
-                            ui.selectable_value(
-                                &mut self.get_config_mut().input_method,
-                                ohno.clone().into_sdl(),
-                                "SDL/X11",
-                            );
-                            ui.selectable_value(
-                                &mut self.get_config_mut().input_method,
-                                ohno.clone().into_evdev(),
-                                "Evdev",
-                            );
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| {
+                    egui_alignments::top_horizontal(ui, |ui| {
+                        egui::Grid::new("keymap grid").show(ui, |ui| {
+                            ui.label("Input Method");
+                            // I've committed a sin,please don't kill me ferris
+                            egui::ComboBox::from_id_salt("configure mapping combobox")
+                                .selected_text(format!("{:?}", cl))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.shared_state.temp_config.input_method,
+                                        cl.clone().into_both(),
+                                        "Both",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shared_state.temp_config.input_method,
+                                        cl.clone().into_sdl(),
+                                        "SDL/X11",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shared_state.temp_config.input_method,
+                                        cl.clone().into_evdev(),
+                                        "Evdev",
+                                    );
+                                });
+                            ui.end_row();
+                            let cl = self.shared_state.temp_config.input_method.clone();
+                            if self.get_config().input_method.has_sdl() {
+                                let sdl_keymap = cl.get_sdlkeymap().unwrap();
+                                let mut_sdl_keymap = self.shared_state.temp_config.input_method
+                                    .get_sdlkeymap_mut()
+                                    .unwrap();
+                                ui.strong("SDL/X11 Keymap:");
+                                ui.end_row();
+                                ui.label("Test Key:");
+                                if ui.button(sdl_keymap.test.unwrap().name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.test = Some(*k);
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Start Key:");
+                                if ui.button(sdl_keymap.start.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.start = *k;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Service Key:");
+                                if ui.button(sdl_keymap.service.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.service = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Coin Key:");
+                                if ui.button(sdl_keymap.coin.unwrap().name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.coin = Some(*k);
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Up Key:");
+                                if ui.button(sdl_keymap.up.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.up = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Down Key:");
+                                if ui.button(sdl_keymap.down.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.down = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Left Key:");
+                                if ui.button(sdl_keymap.left.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.left = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Right Key:");
+                                if ui.button(sdl_keymap.right.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.right = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Button 1 Key:");
+                                if ui.button(sdl_keymap.button1.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.button1 = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Button 2 Key:");
+                                if ui.button(sdl_keymap.button2.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.button2 = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Button 3 Key:");
+                                if ui.button(sdl_keymap.button3.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.button3 = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Player 1 Button 4 Key:");
+                                if ui.button(sdl_keymap.button4.name()).hovered() {
+                                    for k in Key::ALL {
+                                        if ctx.input(|i| i.key_down(*k)) {
+                                            mut_sdl_keymap.button4 = *k;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            ui.end_row();
+                            if self.get_config().input_method.has_evdev() {
+                                let mut_evdev_keymap =
+                                    self.shared_state.temp_config.input_method.get_evdev_mut().unwrap();
+                                ui.strong("Evdev Keymap:");
+                                ui.end_row();
+                                ui.label("Test Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player1.test.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 1 Start Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.start);
+                                ui.end_row();
+                                ui.label("Player 1 Service Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.service);
+                                ui.end_row();
+                                ui.label("Player 1 Up Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.up);
+                                ui.end_row();
+                                ui.label("Player 1 Down Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.down);
+                                ui.end_row();
+                                ui.label("Player 1 Left Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.left);
+                                ui.end_row();
+                                ui.label("Player 1 Right Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.right);
+                                ui.end_row();
+                                ui.label("Player 1 Button 1 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.button1);
+                                ui.end_row();
+                                ui.label("Player 1 Button 2 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.button2);
+                                ui.end_row();
+                                ui.label("Player 1 Button 3 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.button3);
+                                ui.end_row();
+                                ui.label("Player 1 Button 4 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player1.button4);
+                                ui.end_row();
+                                ui.label("Player 1 Button 5 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player1.button5.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 1 Button 6 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player1.button6.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 1 Button 7 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player1.button7.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 1 Button 8 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player1.button8.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 2 Start Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.start);
+                                ui.end_row();
+                                ui.label("Player 2 Service Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.service);
+                                ui.end_row();
+                                ui.label("Player 2 Up Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.up);
+                                ui.end_row();
+                                ui.label("Player 2 Down Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.down);
+                                ui.end_row();
+                                ui.label("Player 2 Left Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.left);
+                                ui.end_row();
+                                ui.label("Player 2 Right Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.right);
+                                ui.end_row();
+                                ui.label("Player 2 Button 1 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.button1);
+                                ui.end_row();
+                                ui.label("Player 2 Button 2 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.button2);
+                                ui.end_row();
+                                ui.label("Player 2 Button 3 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.button3);
+                                ui.end_row();
+                                ui.label("Player 2 Button 4 Key:");
+                                ui.text_edit_singleline(&mut mut_evdev_keymap.player2.button4);
+                                ui.end_row();
+                                ui.label("Player 2 Button 5 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player2.button5.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 2 Button 6 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player2.button6.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 2 Button 7 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player2.button7.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                                ui.label("Player 2 Button 8 Key:");
+                                ui.text_edit_singleline(
+                                    mut_evdev_keymap.player2.button8.as_mut().unwrap(),
+                                );
+                                ui.end_row();
+                            }
                         });
-                    let ohno = self.game_library[self.shared_state.new_game_modify.unwrap()]
-                        .config
-                        .input_method
-                        .clone();
-                    ui.end_row();
-                    ui.end_row();
-                    if self.get_config().input_method.has_sdl() {
-                        let sdl_keymap = ohno.get_sdlkeymap().unwrap();
-                        let mut_sdl_keymap = self
-                            .get_config_mut()
-                            .input_method
-                            .get_sdlkeymap_mut()
-                            .unwrap();
-                        ui.strong("SDL/X11 Keymap:");
-                        ui.end_row();
-                        ui.label("Test Key:");
-                        if ui.button(sdl_keymap.test.unwrap().name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.test = Some(*k);
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Start Key:");
-                        if ui.button(sdl_keymap.start.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.start = *k;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Service Key:");
-                        if ui.button(sdl_keymap.service.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.service = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Coin Key:");
-                        if ui.button(sdl_keymap.coin.unwrap().name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.coin = Some(*k);
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Up Key:");
-                        if ui.button(sdl_keymap.up.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.up = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Down Key:");
-                        if ui.button(sdl_keymap.down.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.down = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Left Key:");
-                        if ui.button(sdl_keymap.left.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.left = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Right Key:");
-                        if ui.button(sdl_keymap.right.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.right = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Button 1 Key:");
-                        if ui.button(sdl_keymap.button1.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.button1 = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Button 2 Key:");
-                        if ui.button(sdl_keymap.button2.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.button2 = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Button 3 Key:");
-                        if ui.button(sdl_keymap.button3.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.button3 = *k;
-                                    break;
-                                }
-                            }
-                        }
-                        ui.end_row();
-                        ui.label("Player 1 Button 4 Key:");
-                        if ui.button(sdl_keymap.button4.name()).hovered() {
-                            for k in Key::ALL {
-                                if ctx.input(|i| i.key_down(*k)) {
-                                    mut_sdl_keymap.button4 = *k;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    ui.end_row();
-                    if self.get_config().input_method.has_evdev() {
-                        let evdev_keymap = ohno.get_evdev().unwrap();
-                        let mut_evdev_keymap = self
-                            .get_config_mut()
-                            .input_method
-                            .get_evdev_mut()
-                            .unwrap();
-                        ui.strong("Evdev Keymap:");
-                        ui.end_row();
-                        ui.label("Test Key:");
-                        ui.text_edit_singleline(mut_evdev_keymap.player1.test.as_mut().unwrap());
-                        ui.end_row();
-                        ui.label("Player 1 Start Key:");
-                        ui.text_edit_singleline(&mut mut_evdev_keymap.player1.start);
-                    }
+                    });
                 });
+        });
+        egui::TopBottomPanel::bottom("config mapping btm panel").show(ctx, |ui| {
+            egui_alignments::center_horizontal(ui, |ui| {
+                if ui.button("Save").clicked() {
+                    *self.get_config_mut() = self.shared_state.temp_config.clone();
+                    self.shared_state.first_run = true;
+                    if let Err(e) = self
+                        .get_config()
+                        .write_to_lindbergh_conf(&self.current_game)
+                    {
+                        self.set_modal(
+                            format!("Error occurred while writing data \"{}\"", e),
+                            ModalStatus::Error,
+                        );
+                    } else {
+                        self.set_modal(
+                            format!(
+                                "Configuration successfully saved into ./config/{:?}.conf",
+                                self.current_game
+                            ),
+                            ModalStatus::Info,
+                        );
+                        self.shared_state.shared_text = vec![String::new(); 6];
+                        self.app_state = AppState::MainPage;
+                        self.shared_state.temp_config.input_method = Keymap::default();
+                        self.shared_state.new_game_modify = None;
+                    }
+                }
+                if ui.button("Cancel").clicked() {
+                    self.shared_state.shared_text = vec![String::new(); 6];
+                    self.app_state = AppState::MainPage;
+                    self.shared_state.temp_config.input_method = Keymap::default();
+                    self.shared_state.first_run = true;
+                    self.shared_state.new_game_modify = None;
+                }
             });
         });
     }
