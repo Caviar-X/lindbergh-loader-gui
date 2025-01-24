@@ -1,6 +1,6 @@
 use eframe::egui;
 use loader_gui::ui::LoaderApp;
-use std::fs::{self, File};
+use std::fs;
 fn main() -> eframe::Result {
     // Log to stderr (if you run with `RUST_LOG=debug`).
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/default.png")).unwrap();

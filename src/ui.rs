@@ -1,13 +1,12 @@
 use crate::config::{
     GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
 };
-use network_interface::NetworkInterface;
-use network_interface::NetworkInterfaceConfig;
 use crate::games::{GameData, GameTitle, GameType};
 use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
+use network_interface::NetworkInterface;
+use network_interface::NetworkInterfaceConfig;
 use rfd::FileDialog;
-use std::fmt::Pointer;
 use std::fs::{self, remove_file};
 use std::time::Duration;
 
@@ -40,7 +39,7 @@ pub struct SharedState {
     pub new_game_modify: Option<usize>,
     pub shared_text: [String; 6],
     pub temp_config: LindberghConfig,
-    pub first_run: [bool;4],
+    pub first_run: [bool; 4],
     pub temp_interface: Vec<NetworkInterface>,
 }
 impl Default for SharedState {
@@ -49,7 +48,7 @@ impl Default for SharedState {
             new_game_modify: None,
             shared_text: Default::default(),
             temp_config: LindberghConfig::default(),
-            first_run: [true;4],
+            first_run: [true; 4],
             temp_interface: vec![],
         }
     }
@@ -58,7 +57,7 @@ impl SharedState {
     pub fn assign_conf(&self, lconf: &mut LindberghConfig) -> anyhow::Result<()> {
         if lconf.exe_path.is_empty() {
             return Err(anyhow!("Unspecified executable path"));
-        } 
+        }
         if !self.shared_text[0].is_empty() && !self.shared_text[1].is_empty() {
             lconf.window_size = (
                 self.shared_text[0].parse::<u32>()?,
@@ -452,7 +451,11 @@ impl LoaderApp {
         let cur_game = self.current_game.clone();
         let p = format!("./config/{:?}.conf", cur_game);
         if fs::exists(&p).unwrap() && self.shared_state.first_run[0] {
-            if let Err(e) = self.shared_state.temp_config.read_from_lindbergh_conf_by_title(&cur_game) {
+            if let Err(e) = self
+                .shared_state
+                .temp_config
+                .read_from_lindbergh_conf_by_title(&cur_game)
+            {
                 self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,cur_game), ModalStatus::Error);
             } else {
                 self.shared_state.first_run[0] = false;
@@ -461,13 +464,19 @@ impl LoaderApp {
         if self.shared_state.first_run[1] {
             let mhz = calcmhz::estimate_mhz(1000, Duration::from_millis(20));
             if let Err(e) = mhz {
-                self.set_modal(format!("Unable to get CPU information:\n{}",e), ModalStatus::Error);
+                self.set_modal(
+                    format!("Unable to get CPU information:\n{}", e),
+                    ModalStatus::Error,
+                );
             } else if let Result::Ok(k) = mhz {
                 self.shared_state.temp_config.cpu_freq = (k.mhz / 100.0).trunc() / 10.0;
             }
             let interfaces = NetworkInterface::show();
             if let Err(e) = interfaces {
-                self.set_modal(format!("Unable to get network card information:\n{}",e), ModalStatus::Error);
+                self.set_modal(
+                    format!("Unable to get network card information:\n{}", e),
+                    ModalStatus::Error,
+                );
                 return;
             } else if let Result::Ok(k) = interfaces {
                 self.shared_state.temp_interface = k;
@@ -701,7 +710,7 @@ impl LoaderApp {
                             ui.label("Enable border:");
                             ui.checkbox(&mut self.shared_state.temp_config.border_enabled, "");
                             ui.end_row();
-                            if self.get_config().border_enabled {
+                            if self.shared_state.temp_config.border_enabled {
                                 ui.label("White border:");
                                 ui.add(
                                     egui::Slider::new(
@@ -724,12 +733,12 @@ impl LoaderApp {
                             ui.label("Enable FPS limiter:");
                             ui.checkbox(&mut self.shared_state.temp_config.enable_fps_limiter, "");
                             ui.end_row();
-                            if self.get_config().enable_fps_limiter {
+                            if self.shared_state.temp_config.enable_fps_limiter {
                                 ui.label("FPS limit:");
                                 ui.text_edit_singleline(&mut self.shared_state.shared_text[2]);
                                 ui.end_row();
                             }
-                            if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
+                            if self.current_game == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Skip cabinet check:");
                                 ui.checkbox(
                                     &mut self.shared_state.temp_config.skip_outrun_cabinet_check,
@@ -737,8 +746,8 @@ impl LoaderApp {
                                 );
                                 ui.end_row();
                             }
-                            if GameTitle::from(self.get_game()) == GameTitle::Taisen_Mahjong_4
-                                || GameTitle::from(self.get_game())
+                            if self.current_game == GameTitle::Taisen_Mahjong_4
+                                || self.current_game
                                     == GameTitle::Taisen_Mahjong_4_Evolution
                             {
                                 ui.label("Mahjong 4 enable all the time:");
@@ -807,7 +816,7 @@ impl LoaderApp {
                                 ui.label("Inital D 4/5 Seat1 IP:");
                                 ui.text_edit_singleline(&mut self.shared_state.temp_config.id45_ip_seat[0]);
                                 ui.label("Inital D 4/5 Seat2 IP:");
-                                ui.text_edit_singleline(&mut self.shared_state.temp_config.id45_ip_seat[1]);    
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.id45_ip_seat[1]);
                             }
                             if self.current_game == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Network Card Name:");
@@ -826,7 +835,6 @@ impl LoaderApp {
                                     }
                                 });
                                 ui.end_row();
-                                
                                 let pos = self.shared_state.temp_interface.iter().position(|x| x.name == self.shared_state.temp_config.nic_name);
                                 // TODO: Better handling maybe?
                                 let select_ip = if pos.is_some() {
@@ -859,7 +867,16 @@ impl LoaderApp {
                                 ui.label(format!("{} Ghz",&self.shared_state.temp_config.cpu_freq.to_string()));
                                 ui.end_row();
                             }
-
+                            if self.current_game == GameTitle::Virtua_Tennis_3 {
+                                ui.label("Emulate Card Reader:");
+                                ui.checkbox(&mut self.shared_state.temp_config.emulate_cardreader, "");
+                                ui.end_row();
+                                ui.label("Card Reader 1:");
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.card_file[0]);
+                                ui.end_row();
+                                ui.label("Card Reader 2:");
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.card_file[1]);
+                            }
                         });
                     });
                 });
@@ -873,9 +890,9 @@ impl LoaderApp {
                             format!("Error occurred while parsing data \"{}\"", e),
                             ModalStatus::Error,
                         );
-                    }
-                    else if let Err(e) = self
-                        .shared_state.temp_config
+                    } else if let Err(e) = self
+                        .shared_state
+                        .temp_config
                         .write_to_lindbergh_conf(&self.current_game)
                     {
                         self.set_modal(
@@ -971,6 +988,8 @@ impl LoaderApp {
                                     .get_sdlkeymap_mut()
                                     .unwrap();
                                 ui.strong("SDL/X11 Keymap:");
+                                ui.end_row();
+                                ui.label("To modify a key,hover on the button and press the key on the keyboard.");
                                 ui.end_row();
                                 ui.label("Test Key:");
                                 if ui.button(sdl_keymap.test.unwrap().name()).hovered() {
@@ -1241,7 +1260,7 @@ impl LoaderApp {
                     self.shared_state.shared_text = Default::default();
                     self.app_state = AppState::MainPage;
                     self.shared_state.temp_config.input_method = Keymap::default();
-                    self.shared_state.first_run = [true;4];
+                    self.shared_state.first_run = [true; 4];
                     self.shared_state.new_game_modify = None;
                 }
             });
