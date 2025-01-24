@@ -1,11 +1,15 @@
 use crate::config::{
     GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
 };
+use network_interface::NetworkInterface;
+use network_interface::NetworkInterfaceConfig;
 use crate::games::{GameData, GameTitle, GameType};
 use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use rfd::FileDialog;
+use std::fmt::Pointer;
 use std::fs::{self, remove_file};
+use std::time::Duration;
 
 enum AppState {
     MainPage,
@@ -34,22 +38,27 @@ impl Default for AppState {
 #[derive(Clone)]
 pub struct SharedState {
     pub new_game_modify: Option<usize>,
-    pub shared_text: Vec<String>,
+    pub shared_text: [String; 6],
     pub temp_config: LindberghConfig,
-    pub first_run: bool,
+    pub first_run: [bool;4],
+    pub temp_interface: Vec<NetworkInterface>,
 }
 impl Default for SharedState {
     fn default() -> Self {
         Self {
             new_game_modify: None,
-            shared_text: vec![String::new(); 6],
+            shared_text: Default::default(),
             temp_config: LindberghConfig::default(),
-            first_run: true,
+            first_run: [true;4],
+            temp_interface: vec![],
         }
     }
 }
 impl SharedState {
     pub fn assign_conf(&self, lconf: &mut LindberghConfig) -> anyhow::Result<()> {
+        if lconf.exe_path.is_empty() {
+            return Err(anyhow!("Unspecified executable path"));
+        } 
         if !self.shared_text[0].is_empty() && !self.shared_text[1].is_empty() {
             lconf.window_size = (
                 self.shared_text[0].parse::<u32>()?,
@@ -59,11 +68,14 @@ impl SharedState {
         if lconf.enable_fps_limiter {
             lconf.limit_fps_target = self.shared_text[2].parse()?;
         }
-        if lconf.exe_path.is_empty() {
-            Err(anyhow!("Unspecified executable path"))
-        } else {
-            Ok(())
+        if !self.shared_text[3].is_empty() && !self.shared_text[4].is_empty() {
+            lconf.custom_cursor_width = self.shared_text[3].parse()?;
+            lconf.custom_cursor_height = self.shared_text[4].parse()?;
         }
+        if lconf.custom_cursor_height == 0 || lconf.custom_cursor_width == 0 {
+            return Err(anyhow!("Custom cursor width or height cannot be 0"));
+        }
+        Ok(())
     }
 }
 pub struct LoaderApp {
@@ -295,16 +307,7 @@ impl LoaderApp {
                                 if del >= 0 {
                                     self.game_library.remove(del as usize);
                                 }
-                                if let Err(e) = executable_path::remove_exe_path(&self.current_game)
-                                {
-                                    self.set_modal(
-                                        format!(
-                                            "Unable to delete game {} because:\n{}",
-                                            self.current_game, e
-                                        ),
-                                        ModalStatus::Error,
-                                    );
-                                } else if let Err(e) =
+                                if let Err(e) =
                                     remove_file(format!("./config/{:?}.conf", self.current_game))
                                 {
                                     self.set_modal(
@@ -448,16 +451,30 @@ impl LoaderApp {
         }
         let cur_game = self.current_game.clone();
         let p = format!("./config/{:?}.conf", cur_game);
-        let mut config = LindberghConfig::default();
-        if fs::exists(&p).unwrap() && self.shared_state.first_run {
-            if let Err(e) = config.read_from_lindbergh_conf_by_title(&cur_game) {
+        if fs::exists(&p).unwrap() && self.shared_state.first_run[0] {
+            if let Err(e) = self.shared_state.temp_config.read_from_lindbergh_conf_by_title(&cur_game) {
                 self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,cur_game), ModalStatus::Error);
             } else {
-                self.shared_state.first_run = false;
+                self.shared_state.first_run[0] = false;
             }
         }
-        if self.shared_state.temp_config == LindberghConfig::default() {
-            self.shared_state.temp_config = config;
+        if self.shared_state.first_run[1] {
+            let mhz = calcmhz::estimate_mhz(1000, Duration::from_millis(20));
+            if let Err(e) = mhz {
+                self.set_modal(format!("Unable to get CPU information:\n{}",e), ModalStatus::Error);
+            } else if let Result::Ok(k) = mhz {
+                self.shared_state.temp_config.cpu_freq = (k.mhz / 100.0).trunc() / 10.0;
+            }
+            let interfaces = NetworkInterface::show();
+            if let Err(e) = interfaces {
+                self.set_modal(format!("Unable to get network card information:\n{}",e), ModalStatus::Error);
+                return;
+            } else if let Result::Ok(k) = interfaces {
+                self.shared_state.temp_interface = k;
+            }
+            self.shared_state.first_run[1] = false;
+        }
+        if self.shared_state.first_run[2] {
             let cl = self.shared_state.temp_config.clone();
             if ![
                 (640, 480),
@@ -475,6 +492,9 @@ impl LoaderApp {
                 self.shared_state.shared_text[1] = cl.window_size.1.to_string();
             }
             self.shared_state.shared_text[2] = cl.limit_fps_target.to_string();
+            self.shared_state.shared_text[3] = cl.custom_cursor_width.to_string();
+            self.shared_state.shared_text[4] = cl.custom_cursor_height.to_string();
+            self.shared_state.first_run[2] = false;
         }
         let cl = self.shared_state.temp_config.clone();
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -484,6 +504,7 @@ impl LoaderApp {
             ui.separator();
             egui::ScrollArea::vertical()
                 .id_salt("Configure Game ScrollArea")
+                .auto_shrink(false)
                 .show(ui, |ui| {
                     egui_alignments::top_horizontal_wrapped(ui, |ui| {
                         egui::Grid::new("configure game grid").show(ui, |ui| {
@@ -491,10 +512,7 @@ impl LoaderApp {
                             if cl.exe_path.len() > 40 {
                                 ui.label(format!(
                                     "{}..",
-                                    &(cl.exe_path)
-                                        .chars()
-                                        .take(48)
-                                        .collect::<String>()
+                                    &(cl.exe_path).chars().take(48).collect::<String>()
                                 ));
                             } else {
                                 ui.label(&cl.exe_path);
@@ -515,11 +533,7 @@ impl LoaderApp {
                             ui.label("Preset:");
                             egui::ComboBox::from_id_salt("window size combobox")
                                 .width(50.0)
-                                .selected_text(format!(
-                                    "{}x{}",
-                                    cl.window_size.0,
-                                    cl.window_size.1
-                                ))
+                                .selected_text(format!("{}x{}", cl.window_size.0, cl.window_size.1))
                                 .show_ui(ui, |ui| {
                                     for i in [
                                         (640, 480),
@@ -580,7 +594,9 @@ impl LoaderApp {
                             ui.end_row();
                             if !self.get_config().emulate_jvs {
                                 ui.label("Enter serial port:");
-                                ui.text_edit_singleline(&mut self.shared_state.temp_config.jvs_path);
+                                ui.text_edit_singleline(
+                                    &mut self.shared_state.temp_config.jvs_path,
+                                );
                                 ui.end_row();
                             }
                             if GameTitle::from(self.get_game()) == GameTitle::Lets_Go_Jungle_Special
@@ -588,7 +604,10 @@ impl LoaderApp {
                                     == GameTitle::The_House_Of_The_Dead_4_Special
                             {
                                 ui.label("Emulate Rideboard:");
-                                ui.checkbox(&mut self.shared_state.temp_config.emulate_rideboard, "");
+                                ui.checkbox(
+                                    &mut self.shared_state.temp_config.emulate_rideboard,
+                                    "",
+                                );
                                 if !self.get_config().emulate_rideboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
@@ -600,7 +619,10 @@ impl LoaderApp {
                             }
                             if self.get_game().game_type == Some(GameType::DRIVING) {
                                 ui.label("Emulate driveboard:");
-                                ui.checkbox(&mut self.shared_state.temp_config.emulate_driveboard, "");
+                                ui.checkbox(
+                                    &mut self.shared_state.temp_config.emulate_driveboard,
+                                    "",
+                                );
                                 if !self.get_config().emulate_driveboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
@@ -612,7 +634,10 @@ impl LoaderApp {
                             }
                             if GameTitle::from(self.get_game()) == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Emulate motionboard:");
-                                ui.checkbox(&mut self.shared_state.temp_config.emulate_motionboard, "");
+                                ui.checkbox(
+                                    &mut self.shared_state.temp_config.emulate_motionboard,
+                                    "",
+                                );
                                 if !self.get_config().emulate_motionboard {
                                     ui.end_row();
                                     ui.label("Enter serial port:");
@@ -656,7 +681,10 @@ impl LoaderApp {
                                 || GameTitle::from(self.get_game()) == GameTitle::Hummer_Extreme_MDX
                             {
                                 ui.label("Hummer Flicker Fix:");
-                                ui.checkbox(&mut self.shared_state.temp_config.hammer_flicker_fix, "");
+                                ui.checkbox(
+                                    &mut self.shared_state.temp_config.hammer_flicker_fix,
+                                    "",
+                                );
                                 ui.end_row();
                             }
                             ui.label("Keep aspect ratio:");
@@ -714,7 +742,10 @@ impl LoaderApp {
                                     == GameTitle::Taisen_Mahjong_4_Evolution
                             {
                                 ui.label("Mahjong 4 enable all the time:");
-                                ui.checkbox(&mut self.shared_state.temp_config.mj4_enable_all_time, "");
+                                ui.checkbox(
+                                    &mut self.shared_state.temp_config.mj4_enable_all_time,
+                                    "",
+                                );
                                 ui.end_row();
                             }
                             ui.label("Lindbergh color:");
@@ -736,6 +767,99 @@ impl LoaderApp {
                                     }
                                 });
                             ui.end_row();
+                            ui.label("Disable Builtin Font:");
+                            ui.checkbox(&mut self.shared_state.temp_config.disable_builtin_font, "");
+                            ui.end_row();
+                            ui.label("Disable Builtin Logos:");
+                            ui.checkbox(&mut self.shared_state.temp_config.disable_builtin_logos, "");
+                            ui.end_row();
+                            ui.label("Hide Cursor:");
+                            ui.checkbox(&mut self.shared_state.temp_config.hide_cursor, "");
+                            ui.end_row();
+                            if !cl.hide_cursor {
+                                ui.label("Custom Cursor Path:");
+                                if cl.custom_cursor_path.len() > 40 {
+                                    ui.label(format!(
+                                        "{}..",
+                                        &(cl.custom_cursor_path).chars().take(48).collect::<String>()
+                                    ));
+                                } else {
+                                    ui.label(&cl.custom_cursor_path);
+                                }
+                                if ui.small_button("📁").clicked() {
+                                    if let Some(path) = FileDialog::new()
+                                        .add_filter("Image(*.png,*.jpg,*.jpeg)", &["png", "jpg", "jpeg"])
+                                        .pick_file()
+                                    {
+                                        self.shared_state.temp_config.custom_cursor_path =
+                                            path.to_string_lossy().to_string();
+                                    }
+                                }
+                                ui.end_row();
+                                ui.label("Cursor Width:");
+                                ui.text_edit_singleline(&mut self.shared_state.shared_text[3]);
+                                ui.end_row();
+                                ui.label("Cursor Height:");
+                                ui.text_edit_singleline(&mut self.shared_state.shared_text[4]);
+                                ui.end_row();
+                            }
+                            if self.current_game == GameTitle::InitialD_4 || self.current_game == GameTitle::InitalD_4_Export || self.current_game == GameTitle::InitialD_5_Japan || self.current_game == GameTitle::InitalD_5_Export_Ver_2 || self.current_game == GameTitle::InitalD_5_Export_Ver_4 {
+                                ui.label("Inital D 4/5 Seat1 IP:");
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.id45_ip_seat[0]);
+                                ui.label("Inital D 4/5 Seat2 IP:");
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.id45_ip_seat[1]);    
+                            }
+                            if self.current_game == GameTitle::Outrun_2_SP_SDX {
+                                ui.label("Network Card Name:");
+                                if self.shared_state.temp_config.nic_name.is_empty() {
+                                    self.shared_state.temp_config.nic_name = self.shared_state.temp_interface.get(0).unwrap().name.clone();
+                                }
+                                egui::ComboBox::from_id_salt("network card combobox")
+                                .selected_text(&cl.nic_name)
+                                .show_ui(ui, |ui| {
+                                    for i in self.shared_state.temp_interface.iter() {
+                                        ui.selectable_value(
+                                            &mut self.shared_state.temp_config.nic_name,
+                                            i.clone().name,
+                                            &i.name,
+                                        );
+                                    }
+                                });
+                                ui.end_row();
+                                
+                                let pos = self.shared_state.temp_interface.iter().position(|x| x.name == self.shared_state.temp_config.nic_name);
+                                // TODO: Better handling maybe?
+                                let select_ip = if pos.is_some() {
+                                    self.shared_state.temp_interface.get(pos.unwrap()).unwrap().addr.iter().filter(|x| x.ip().is_ipv4()).nth(0)
+                                } else {
+                                    None
+                                };
+                                ui.strong("The Outrun SP SDX's IP Address is filled automatically and cannot be edited.");
+                                ui.end_row();
+                                ui.label("Outrun SP SDX IP:");
+                                if select_ip.is_some() {
+                                    self.shared_state.temp_config.outrun_link_ip = select_ip.unwrap().ip().to_string();
+                                } else {
+                                    self.shared_state.temp_config.outrun_link_ip = String::new();
+                                }
+                                ui.text_edit_singleline(&mut self.shared_state.temp_config.outrun_link_ip);
+                                ui.end_row();
+                            }
+                            if self.current_game == GameTitle::Harley_Davidson {
+                                for i in 1..=4 {
+                                    ui.label(format!("Harley Davidson Cabinet IP{}:",i));
+                                    ui.text_edit_singleline(&mut self.shared_state.temp_config.harley_cab[i-1]);
+                                    ui.end_row();
+                                }
+                            }
+                            if self.current_game == GameTitle::The_House_Of_The_Dead_4 {
+                                ui.strong("CPU Frequency is measured by system.");
+                                ui.end_row();
+                                ui.label("CPU Frequency:");
+                                ui.label(format!("{} Ghz",&self.shared_state.temp_config.cpu_freq.to_string()));
+                                ui.end_row();
+                            }
+
                         });
                     });
                 });
@@ -750,9 +874,8 @@ impl LoaderApp {
                             ModalStatus::Error,
                         );
                     }
-                    *self.get_config_mut() = self.shared_state.temp_config.clone();
-                    if let Err(e) = self
-                        .get_config()
+                    else if let Err(e) = self
+                        .shared_state.temp_config
                         .write_to_lindbergh_conf(&self.current_game)
                     {
                         self.set_modal(
@@ -760,7 +883,7 @@ impl LoaderApp {
                             ModalStatus::Error,
                         );
                     } else {
-
+                        *self.get_config_mut() = self.shared_state.temp_config.clone();
                         self.set_modal(
                             format!(
                                 "Configuration successfully saved into ./config/{:?}.conf",
@@ -768,19 +891,13 @@ impl LoaderApp {
                             ),
                             ModalStatus::Info,
                         );
-                        self.shared_state.shared_text = vec![String::new(); 6];
-                        self.shared_state.temp_config = LindberghConfig::default();
                         self.app_state = AppState::MainPage;
-                        self.shared_state.first_run = true;
-                        self.shared_state.new_game_modify = None;
+                        self.shared_state = SharedState::default();
                     }
                 }
                 if ui.button("Cancel").clicked() {
-                    self.shared_state.shared_text = vec![String::new(); 6];
-                    self.shared_state.temp_config = LindberghConfig::default();
                     self.app_state = AppState::MainPage;
-                    self.shared_state.first_run = true;
-                    self.shared_state.new_game_modify = None;
+                    self.shared_state = SharedState::default();
                 }
             });
         });
@@ -801,17 +918,17 @@ impl LoaderApp {
         }
         let mut config = LindberghConfig::default();
         let p = format!("./config/{:?}.conf", self.current_game);
-        if fs::exists(&p).unwrap() && self.shared_state.first_run {
+        if fs::exists(&p).unwrap() && self.shared_state.first_run[0] {
             if let Err(e) = config.read_from_lindbergh_conf_by_title(&self.current_game) {
                 self.set_modal(format!("config {} exists,but error occurred while reading data:\n{}\nCurrent game: {:?}",&p,e,self.current_game), ModalStatus::Error);
             } else {
-                self.shared_state.first_run = false;
+                self.shared_state.first_run[0] = false;
             }
         }
         if self.shared_state.temp_config.input_method == Keymap::default() {
             self.shared_state.temp_config = config;
         }
-        let cl = self.get_config().input_method.clone();
+        let cl = self.shared_state.temp_config.input_method.clone();
         egui::CentralPanel::default().show(ctx, |ui| {
             egui_alignments::top_horizontal(ui, |ui| {
                 ui.heading(RichText::new("Configure KeyMap").size(35.0).strong());
@@ -845,9 +962,12 @@ impl LoaderApp {
                                 });
                             ui.end_row();
                             let cl = self.shared_state.temp_config.input_method.clone();
-                            if self.get_config().input_method.has_sdl() {
+                            if cl.has_sdl() {
                                 let sdl_keymap = cl.get_sdlkeymap().unwrap();
-                                let mut_sdl_keymap = self.shared_state.temp_config.input_method
+                                let mut_sdl_keymap = self
+                                    .shared_state
+                                    .temp_config
+                                    .input_method
                                     .get_sdlkeymap_mut()
                                     .unwrap();
                                 ui.strong("SDL/X11 Keymap:");
@@ -971,9 +1091,13 @@ impl LoaderApp {
                                 }
                             }
                             ui.end_row();
-                            if self.get_config().input_method.has_evdev() {
-                                let mut_evdev_keymap =
-                                    self.shared_state.temp_config.input_method.get_evdev_mut().unwrap();
+                            if cl.has_evdev() {
+                                let mut_evdev_keymap = self
+                                    .shared_state
+                                    .temp_config
+                                    .input_method
+                                    .get_evdev_mut()
+                                    .unwrap();
                                 ui.strong("Evdev Keymap:");
                                 ui.end_row();
                                 ui.label("Test Key:");
@@ -1090,7 +1214,7 @@ impl LoaderApp {
             egui_alignments::center_horizontal(ui, |ui| {
                 if ui.button("Save").clicked() {
                     *self.get_config_mut() = self.shared_state.temp_config.clone();
-                    self.shared_state.first_run = true;
+                    self.shared_state.first_run = [true; 4];
                     if let Err(e) = self
                         .get_config()
                         .write_to_lindbergh_conf(&self.current_game)
@@ -1107,17 +1231,17 @@ impl LoaderApp {
                             ),
                             ModalStatus::Info,
                         );
-                        self.shared_state.shared_text = vec![String::new(); 6];
+                        self.shared_state.shared_text = Default::default();
                         self.app_state = AppState::MainPage;
                         self.shared_state.temp_config.input_method = Keymap::default();
                         self.shared_state.new_game_modify = None;
                     }
                 }
                 if ui.button("Cancel").clicked() {
-                    self.shared_state.shared_text = vec![String::new(); 6];
+                    self.shared_state.shared_text = Default::default();
                     self.app_state = AppState::MainPage;
                     self.shared_state.temp_config.input_method = Keymap::default();
-                    self.shared_state.first_run = true;
+                    self.shared_state.first_run = [true;4];
                     self.shared_state.new_game_modify = None;
                 }
             });

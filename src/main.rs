@@ -17,9 +17,6 @@ fn main() -> eframe::Result {
     if !fs::exists("./config").unwrap() {
         fs::create_dir("./config").unwrap();
     }
-    if !fs::exists("./config/exe_paths.conf").unwrap() {
-        File::create("./config/exe_paths.conf").unwrap();
-    }
     eframe::run_native(
         "Linderbergh loader GUI",
         options,

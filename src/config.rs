@@ -731,39 +731,61 @@ pub struct LindberghConfig {
     pub mj4_enable_all_time: bool,
     pub primevalhunt_mode: PrimevalHuntMode,
     pub lindbergh_color: LindberghColor,
+    pub disable_builtin_font: bool,
+    pub disable_builtin_logos: bool,
+    pub hide_cursor: bool,
+    pub cpu_freq: f64,
+    pub custom_cursor_path: String,
+    pub custom_cursor_width: u32,
+    pub custom_cursor_height: u32,
+    pub outrun_link_ip: String,
+    pub id45_ip_seat: [String; 2],
+    pub nic_name: String,
+    pub harley_cab: [String; 4],
 }
 impl PartialEq for LindberghConfig {
     fn eq(&self, other: &Self) -> bool {
-        self.exe_path == other.exe_path &&
-        self.window_size == other.window_size &&
-        self.fullscreen == other.fullscreen &&
-        self.disable_sdl == other.disable_sdl &&
-        self.game_region == other.game_region &&
-        self.freeplay == other.freeplay &&
-        self.jvs_path == other.jvs_path &&
-        self.emulate_jvs == other.emulate_jvs &&
-        self.serial_port1 == other.serial_port1 &&
-        self.emulate_rideboard == other.emulate_rideboard &&
-        self.emulate_motionboard == other.emulate_motionboard &&
-        self.emulate_driveboard == other.emulate_driveboard &&
-        self.serial_port2 == other.serial_port2 &&
-        self.sram_path == other.sram_path &&
-        self.eeprom_path == other.eeprom_path &&
-        self.gpu_vendor == other.gpu_vendor &&
-        self.debug_message == other.debug_message &&
-        self.hammer_flicker_fix == other.hammer_flicker_fix &&
-        self.keep_aspect_ratio == other.keep_aspect_ratio &&
-        self.outrun_lens_glare_enable == other.outrun_lens_glare_enable &&
-        self.enable_fps_limiter == other.enable_fps_limiter &&
-        self.limit_fps_target == other.limit_fps_target &&
-        self.border_enabled == other.border_enabled &&
-        self.white_border_percentage == other.white_border_percentage &&
-        self.black_border_percentage == other.black_border_percentage &&
-        self.lets_go_jungle_render_with_mesa == other.lets_go_jungle_render_with_mesa &&
-        self.skip_outrun_cabinet_check == other.skip_outrun_cabinet_check &&
-        self.mj4_enable_all_time == other.mj4_enable_all_time &&
-        self.primevalhunt_mode == other.primevalhunt_mode &&
-        self.lindbergh_color == other.lindbergh_color
+        self.exe_path == other.exe_path
+            && self.window_size == other.window_size
+            && self.fullscreen == other.fullscreen
+            && self.disable_sdl == other.disable_sdl
+            && self.game_region == other.game_region
+            && self.freeplay == other.freeplay
+            && self.jvs_path == other.jvs_path
+            && self.emulate_jvs == other.emulate_jvs
+            && self.serial_port1 == other.serial_port1
+            && self.emulate_rideboard == other.emulate_rideboard
+            && self.emulate_motionboard == other.emulate_motionboard
+            && self.emulate_driveboard == other.emulate_driveboard
+            && self.serial_port2 == other.serial_port2
+            && self.sram_path == other.sram_path
+            && self.eeprom_path == other.eeprom_path
+            && self.gpu_vendor == other.gpu_vendor
+            && self.debug_message == other.debug_message
+            && self.hammer_flicker_fix == other.hammer_flicker_fix
+            && self.keep_aspect_ratio == other.keep_aspect_ratio
+            && self.outrun_lens_glare_enable == other.outrun_lens_glare_enable
+            && self.enable_fps_limiter == other.enable_fps_limiter
+            && self.limit_fps_target == other.limit_fps_target
+            && self.border_enabled == other.border_enabled
+            && self.white_border_percentage == other.white_border_percentage
+            && self.black_border_percentage == other.black_border_percentage
+            && self.lets_go_jungle_render_with_mesa == other.lets_go_jungle_render_with_mesa
+            && self.skip_outrun_cabinet_check == other.skip_outrun_cabinet_check
+            && self.mj4_enable_all_time == other.mj4_enable_all_time
+            && self.primevalhunt_mode == other.primevalhunt_mode
+            && self.lindbergh_color == other.lindbergh_color
+            && self.disable_builtin_font == other.disable_builtin_font
+            && self.disable_builtin_logos == other.disable_builtin_logos
+            && self.hide_cursor == other.hide_cursor
+            && self.custom_cursor_path == other.custom_cursor_path
+            && self.custom_cursor_width == other.custom_cursor_width
+            && self.custom_cursor_height == other.custom_cursor_height
+            && self.id45_ip_seat == other.id45_ip_seat
+            && self.nic_name == other.nic_name
+            && self.harley_cab == other.harley_cab
+            && self.outrun_link_ip == other.outrun_link_ip
+            && self.cpu_freq == other.cpu_freq
     }
 }
 impl Default for LindberghConfig {
@@ -800,6 +822,25 @@ impl Default for LindberghConfig {
             mj4_enable_all_time: true,
             primevalhunt_mode: PrimevalHuntMode::NoTouchScreen,
             lindbergh_color: LindberghColor::YELLOW,
+            disable_builtin_font: false,
+            disable_builtin_logos: false,
+            hide_cursor: true,
+            custom_cursor_path: String::new(),
+            custom_cursor_height: 32,
+            custom_cursor_width: 32,
+            cpu_freq: -1.0,
+            id45_ip_seat: [
+                "192.168.1.2".into(),
+                "192.168.1.3".into()
+            ],
+            nic_name: String::new(),
+            outrun_link_ip: "192.168.1.2".into(),
+            harley_cab: [
+                "192.168.1.2".into(),
+                "192.168.1.3".into(),
+                "192.168.1.4".into(),
+                "192.168.1.5".into()
+            ],
         }
     }
 }
@@ -810,7 +851,7 @@ impl LindberghConfig {
             File::create_new(&path)?;
         }
         let mut f = File::options().write(true).truncate(true).open(&path)?;
-        executable_path::add_exe_path(current_title, &self.exe_path)?;
+        writeln!(f,"# {}",self.exe_path)?;
         writeln!(f, "# This file is generated by lindbergh-loader-gui")?;
         writeln!(
             f,
@@ -875,6 +916,28 @@ impl LindberghConfig {
             "MJ4_ENABLED_ALL_THE_TIME {}",
             self.mj4_enable_all_time as i32
         )?;
+        writeln!(f,"DISABLE_BUILTIN_FONT {}",self.disable_builtin_font as i32)?;
+        writeln!(f,"DISABLE_BUILTIN_LOGOS {}",self.disable_builtin_logos as i32)?;
+        writeln!(f,"HIDE_CURSOR {}",self.hide_cursor as i32)?;
+        if !self.custom_cursor_path.is_empty() {
+            writeln!(f,"CUSTOM_CURSOR {}",self.custom_cursor_path)?;
+            writeln!(f,"CUSTOM_CURSOR_WIDTH {}",self.custom_cursor_width)?;
+            writeln!(f,"CUSTOM_CURSOR_HEIGHT {}",self.custom_cursor_height)?;
+        }
+        writeln!(f,"ID_IP_SEAT_1 {}",self.id45_ip_seat[0])?;
+        writeln!(f,"ID_IP_SEAT_2 {}",self.id45_ip_seat[1])?;
+        if self.nic_name.is_empty() {
+            writeln!(f,"NIC_NAME enp1s0")?;
+        } else {
+            writeln!(f,"NIC_NAME {}",self.nic_name)?;
+        }
+        writeln!(f,"OR2_IP {}",self.outrun_link_ip)?;
+        for i in 1..=4 {
+            writeln!(f,"HARLEY_CAB{} {}",i,self.harley_cab[i-1])?;
+        }
+        if self.cpu_freq > 0.0 {
+            writeln!(f,"CPU_FREQ {}",self.cpu_freq)?;
+        }
         self.input_method.write_to_lindbergh_conf(&mut f)?;
         Ok(())
     }
@@ -887,6 +950,10 @@ impl LindberghConfig {
         }
         self.input_method.read_from_lindbergh_conf(buf)?;
         for (cnt, i) in buf.lines().enumerate() {
+            if cnt == 0 {
+                self.exe_path = i.chars().skip(1).collect::<String>().trim().into();
+                continue;
+            }
             let r = i.split_whitespace().collect::<Vec<&str>>();
             if r[0] == "#" || r.is_empty() {
                 continue;
@@ -1045,7 +1112,7 @@ impl LindberghConfig {
                     _ => {
                         return Err(anyhow!("Invaild primeval hunt mode"));
                     }
-                },
+                }
                 "LINDBERGH_COLOUR" => match r[1] {
                     "YELLOW" => {
                         self.lindbergh_color = LindberghColor::YELLOW;
@@ -1065,9 +1132,54 @@ impl LindberghConfig {
                     _ => {
                         return Err(anyhow!("Invaild lindbergh color"));
                     }
-                },
+                }
                 "MJ4_ENABLED_ALL_THE_TIME" => {
                     self.mj4_enable_all_time = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "DISABLE_BUILTIN_FONT" => {
+                    self.disable_builtin_font = result_i32_to_bool(r[1].parse()?, cnt+1)?;
+                }
+                "DISABLE_BUILTIN_LOGOS" => {
+                    self.disable_builtin_logos = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "HIDE_CURSOR" => {
+                    self.hide_cursor = result_i32_to_bool(r[1].parse()?, cnt + 1)?;
+                }
+                "CUSTOM_CURSOR" => {
+                    self.custom_cursor_path = r[1].to_string();
+                }
+                "CUSTOM_CURSOR_WIDTH" => {
+                    self.custom_cursor_width = r[1].parse()?;
+                }
+                "CUSTOM_CURSOR_HEIGHT" => {
+                    self.custom_cursor_height = r[1].parse()?;
+                }
+                "ID_IP_SEAT_1" => {
+                    self.id45_ip_seat[0] = r[1].to_string();
+                }
+                "ID_IP_SEAT_2" => {
+                    self.id45_ip_seat[1] = r[1].to_string();
+                }
+                "NIC_NAME" => {
+                    self.nic_name = r[1].to_string();
+                }
+                "OR2_IP" => {
+                    self.outrun_link_ip = r[1].to_string();
+                }
+                "HARLEY_CAB1" => {
+                    self.harley_cab[0] = r[1].to_string();
+                }
+                "HARLEY_CAB2" => {
+                    self.harley_cab[1] = r[1].to_string();
+                }
+                "HARLEY_CAB3" => {
+                    self.harley_cab[2] = r[1].to_string();
+                }
+                "HARLEY_CAB4" => {
+                    self.harley_cab[3] = r[1].to_string();
+                }
+                "CPU_FREQ" => {
+                    self.cpu_freq = r[1].parse()?;
                 }
                 _ => {}
             }
@@ -1078,33 +1190,14 @@ impl LindberghConfig {
         &mut self,
         path: impl AsRef<Path>,
     ) -> anyhow::Result<()> {
-        let buf = read_to_string(path)?;
-        self.read_from_lindbergh_conf(&buf)?;
+        self.read_from_lindbergh_conf(&read_to_string(path)?)?;
         Ok(())
     }
     pub fn read_from_lindbergh_conf_by_title(
         &mut self,
         current_title: &GameTitle,
     ) -> anyhow::Result<()> {
-        // first we have to find exe_path
-        for (cnt, i) in read_to_string("./config/exe_paths.conf")?
-            .lines()
-            .enumerate()
-        {
-            if i.starts_with("#") || i.trim().is_empty() {
-                continue;
-            }
-            let (name, path) = i.split_once(char::is_whitespace).ok_or(anyhow!(
-                "Too few arguments at ./config/exe_paths.conf line {}",
-                cnt + 1
-            ))?;
-            if name == format!("{:?}", current_title) {
-                self.exe_path = String::from(path);
-                break;
-            }
-        }
-        let path = format!("./config/{:?}.conf", current_title);
-        self.read_from_lindbergh_conf_by_path(path)?;
+        self.read_from_lindbergh_conf_by_path(format!("./config/{:?}.conf", current_title))?;
         Ok(())
     }
 }
@@ -1112,75 +1205,17 @@ impl LindberghConfig {
 pub mod executable_path {
     use crate::games::{GameData, GameTitle};
     use anyhow::*;
-    use std::fs::{File, read_to_string};
+    use std::fs::{self, read_to_string, File};
     use std::io::Write;
-    pub fn add_exe_path(current_title: &GameTitle, exe_path: impl ToString) -> anyhow::Result<()> {
-        let buf = read_to_string("./config/exe_paths.conf")?;
-        let mut e = File::options()
-            .write(true)
-            .truncate(true)
-            .open("./config/exe_paths.conf")?;
-        if buf.lines().filter(|x| !x.starts_with("#")).count() == 0 {
-            writeln!(e, "# This file is generated by lindbergh-loader-gui")?;
-            writeln!(
-                e,
-                "# Do not make any changes unless you know what you're doing"
-            )?;
-            writeln!(e, "{:?} {}", current_title, exe_path.to_string())?;
-        } else {
-            for i in buf.lines() {
-                if i.contains(&format!("{:?}", current_title)) {
-                    writeln!(e, "{:?} {}", current_title, exe_path.to_string())?;
-                } else {
-                    writeln!(e, "{}", i)?;
-                }
-            }
-        }
-        Ok(())
-    }
-    pub fn remove_exe_path(current_title: &GameTitle) -> anyhow::Result<()> {
-        let buf = read_to_string("./config/exe_paths.conf")?;
-        let mut e = File::options()
-            .truncate(true)
-            .write(true)
-            .open("./config/exe_paths.conf")?;
-        for i in buf.lines() {
-            if !i.contains(&format!("{:?}", current_title)) {
-                writeln!(e, "{}", i)?;
-            }
-        }
-        Ok(())
-    }
-    pub fn get_path(current_title: &GameTitle) -> anyhow::Result<String> {
-        let buf = read_to_string("./config/exe_paths.conf")?;
-        for (cnt, i) in buf.lines().enumerate() {
-            let (name, path) = i.split_once(char::is_whitespace).ok_or(anyhow!(
-                "Invaild executable path argument on line {}",
-                cnt + 1
-            ))?;
-            if format!("{:?}", current_title) == name {
-                return Ok(path.into());
-            }
-        }
-        Err(anyhow!("Unable to find path"))
-    }
-    pub fn get_list() -> anyhow::Result<Vec<GameData>> {
-        let buf = read_to_string("./config/exe_paths.conf")?;
-        let mut game_library: Vec<GameData> = Vec::new();
-        for (cnt, i) in buf.lines().enumerate() {
-            if i.starts_with("#") || i.trim().is_empty() {
-                continue;
-            }
 
-            let (name, _) = i.split_once(char::is_whitespace).ok_or(anyhow!(
-                "Invaild executable path argument on line {}",
-                cnt + 1
-            ))?;
-            for j in GameTitle::all_variants() {
-                if format!("{:?}", j) == name {
-                    game_library.push(j.as_gamedata());
-                    break;
-                }
+    pub fn get_list() -> anyhow::Result<Vec<GameData>> {
+        let mut game_library: Vec<GameData> = Vec::new();
+        for i in fs::read_dir("./config")? {
+            let i = i?;
+            let path = i.path();
+            let name = path.file_name().ok_or(anyhow!("Cannot get file name"))?.to_str().ok_or(anyhow!("Cannot convert filename to string"))?;
+            if name.ends_with(".conf") {
+                game_library.push(GameTitle::from(name.replace("_", " ").trim_end_matches(".conf")).as_gamedata());
             }
         }
         Ok(game_library)
