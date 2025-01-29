@@ -2,6 +2,7 @@ use crate::config::{
     GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
 };
 use crate::games::{GameData, GameTitle, GameType};
+use crate::runner::{run_game,monitor_game};
 use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use network_interface::NetworkInterface;
@@ -9,7 +10,6 @@ use network_interface::NetworkInterfaceConfig;
 use rfd::FileDialog;
 use std::fs::{self, remove_file};
 use std::time::Duration;
-
 enum AppState {
     MainPage,
     ConfigureMapping,
@@ -84,6 +84,7 @@ pub struct LoaderApp {
     // dirty ways to share state TwT
     shared_state: SharedState,
     current_game: GameTitle,
+    current_process: Option<std::process::Child>,
 }
 impl Default for LoaderApp {
     fn default() -> Self {
@@ -93,6 +94,7 @@ impl Default for LoaderApp {
             game_library: vec![],
             shared_state: SharedState::default(),
             current_game: GameTitle::Unknown,
+            current_process: None,
         }
     }
 }
@@ -276,7 +278,7 @@ impl LoaderApp {
                                 .clicked()
                                 && self.current_game != GameTitle::Unknown
                             {
-                                self.set_modal("cannot lah", ModalStatus::Error);
+                                self.run_game_with_monitor(false);
                             }
                             ui.end_row();
                             if ui
@@ -284,7 +286,7 @@ impl LoaderApp {
                                 .clicked()
                                 && self.current_game != GameTitle::Unknown
                             {
-                                self.set_modal("Placeholder", ModalStatus::Info);
+                                self.run_game_with_monitor(true);
                             }
                             ui.end_row();
                             if ui
@@ -1265,6 +1267,39 @@ impl LoaderApp {
                 }
             });
         });
+    }
+}
+
+impl LoaderApp {
+    fn run_game_with_monitor(&mut self,test_mode: bool) {
+        if let Err(e) = self.shared_state.temp_config.read_from_lindbergh_conf_by_title(&self.current_game) {
+            self.set_modal(format!("Error occurred while reading data \"{}\"", e), ModalStatus::Error);
+            return;
+        }
+        let exe_path = &self.shared_state.temp_config.exe_path;
+        match run_game(exe_path.as_str(), test_mode) {
+            Err(e) => {
+                self.set_modal(format!("Error occurred while running game:\n{}",e), ModalStatus::Error);
+                return;
+            }
+            Result::Ok(c) => {
+                self.current_process = Some(c);
+            }
+        }
+        loop {
+            match monitor_game(exe_path.as_str(), self.current_process.as_mut().unwrap()) {
+                Err(e) => {
+                    self.set_modal(format!("Error occurred while monitoring game:\n{}",e), ModalStatus::Error);
+                    break;
+                }
+                Result::Ok(e) => {
+                    if e.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+        self.current_process = None;
     }
 }
 impl eframe::App for LoaderApp {
