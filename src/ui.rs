@@ -2,7 +2,7 @@ use crate::config::{
     GameRegion, GpuType, Keymap, LindberghColor, LindberghConfig, executable_path,
 };
 use crate::games::{GameData, GameTitle, GameType};
-use crate::runner::{run_game,monitor_game};
+use crate::runner::{monitor_game, run_game};
 use anyhow::{Ok, anyhow};
 use eframe::egui::{self, Color32, Key, Modal, RichText};
 use network_interface::NetworkInterface;
@@ -19,7 +19,6 @@ enum AppState {
 #[derive(PartialEq, Clone, Eq)]
 enum ModalStatus {
     Error,
-    Warning,
     Info,
     About,
 }
@@ -134,12 +133,13 @@ impl LoaderApp {
                                 RichText::new("Info").strong().size(25.0),
                             );
                         },
-                        ModalStatus::Warning => {
-                            ui.colored_label(
-                                Color32::from_rgb(255, 255, 0),
-                                RichText::new("Warning").strong().size(25.0),
-                            );
-                        },
+                        // INFO: Might be used in the future
+                        // ModalStatus::Warning => {
+                        //     ui.colored_label(
+                        //         Color32::from_rgb(255, 255, 0),
+                        //         RichText::new("Warning").strong().size(25.0),
+                        //     );
+                        // },
                         ModalStatus::About => {
                             ui.label(RichText::new("About").strong().size(25.0));
                         }
@@ -823,7 +823,7 @@ impl LoaderApp {
                             if self.current_game == GameTitle::Outrun_2_SP_SDX {
                                 ui.label("Network Card Name:");
                                 if self.shared_state.temp_config.nic_name.is_empty() {
-                                    self.shared_state.temp_config.nic_name = self.shared_state.temp_interface.get(0).unwrap().name.clone();
+                                    self.shared_state.temp_config.nic_name = self.shared_state.temp_interface.first().unwrap().name.clone();
                                 }
                                 egui::ComboBox::from_id_salt("network card combobox")
                                 .selected_text(&cl.nic_name)
@@ -839,8 +839,8 @@ impl LoaderApp {
                                 ui.end_row();
                                 let pos = self.shared_state.temp_interface.iter().position(|x| x.name == self.shared_state.temp_config.nic_name);
                                 // TODO: Better handling maybe?
-                                let select_ip = if pos.is_some() {
-                                    self.shared_state.temp_interface.get(pos.unwrap()).unwrap().addr.iter().filter(|x| x.ip().is_ipv4()).nth(0)
+                                let select_ip = if let Some(pos) = pos {
+                                    self.shared_state.temp_interface.get(pos).unwrap().addr.iter().filter(|x| x.ip().is_ipv4()).nth(0)
                                 } else {
                                     None
                                 };
@@ -1271,15 +1271,25 @@ impl LoaderApp {
 }
 
 impl LoaderApp {
-    fn run_game_with_monitor(&mut self,test_mode: bool) {
-        if let Err(e) = self.shared_state.temp_config.read_from_lindbergh_conf_by_title(&self.current_game) {
-            self.set_modal(format!("Error occurred while reading data \"{}\"", e), ModalStatus::Error);
+    fn run_game_with_monitor(&mut self, test_mode: bool) {
+        if let Err(e) = self
+            .shared_state
+            .temp_config
+            .read_from_lindbergh_conf_by_title(&self.current_game)
+        {
+            self.set_modal(
+                format!("Error occurred while reading data \"{}\"", e),
+                ModalStatus::Error,
+            );
             return;
         }
         let exe_path = &self.shared_state.temp_config.exe_path;
-        match run_game(exe_path.as_str(), test_mode) {
+        match run_game(exe_path.as_str(), test_mode, &self.current_game) {
             Err(e) => {
-                self.set_modal(format!("Error occurred while running game:\n{}",e), ModalStatus::Error);
+                self.set_modal(
+                    format!("Error occurred while running game:\n{}", e),
+                    ModalStatus::Error,
+                );
                 return;
             }
             Result::Ok(c) => {
@@ -1289,11 +1299,15 @@ impl LoaderApp {
         loop {
             match monitor_game(exe_path.as_str(), self.current_process.as_mut().unwrap()) {
                 Err(e) => {
-                    self.set_modal(format!("Error occurred while monitoring game:\n{}",e), ModalStatus::Error);
+                    self.set_modal(
+                        format!("Error occurred while monitoring game:\n{}", e),
+                        ModalStatus::Error,
+                    );
                     break;
                 }
                 Result::Ok(e) => {
-                    if e.is_some() {
+                    if let Some(status) = e {
+                        self.set_modal(format!("Game exited with status {}",status), ModalStatus::Info);
                         break;
                     }
                 }

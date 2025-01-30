@@ -17,7 +17,6 @@ pub struct GameData {
     pub game_title: String,
     pub game_id: String,
     pub game_dvp: String,
-    // true = Working false = Not working/Unkown
     pub game_status: bool,
     pub config: LindberghConfig,
 }
