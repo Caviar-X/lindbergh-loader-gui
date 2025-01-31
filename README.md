@@ -16,7 +16,7 @@ This is a GUI for [lindbergh-loader](https://github.com/lindbergh-loader/lindber
 
 ## Pre-Install Requirements
 
-Rust toolchain is needed to compile this project.
+Rust nightly toolchain is needed to compile this project (specified in [rust-toolchain.toml](./rust-toolchain.toml))
 
 for how to install rust toolchain on your computer,see [rustup](https://rustup.rs/)
 
@@ -27,7 +27,7 @@ For graphical dependecies:
 
 -  **WSL2 Users / Users without desktop environment**: at least one implementation of `xdg-desktop-portal` (for file picker) and X11 with some desktop environment package (such as libadwaita,etc.)
 
-NOTE: I'm not very sure about this.
+NOTE: I'm not very sure about non-desktop users' dependencies,but basically it'll work?
 
 ## Installation
 
@@ -45,6 +45,10 @@ then you can found the executable named `loader-gui` in `./target/release`,move 
 
 ## Troubleshooting
 
+if game exited unexpectedly,try open the loader in bash,it will output the stderr/stdout of the game and the process id of the game in its stderr.
+
+## Known Issue
+
 ```
 Io error: Broken pipe (os error 32)
 Io error: Broken pipe (os error 32)
@@ -53,5 +57,7 @@ Error: WinitEventLoop(ExitFailure(1))
 ```
 NOTE: So far this only happens on wsl2
 
-**Solution:** idk,just rerun a few more times and it works???
+**Recreation:** No idea how to trigger this.
+
+**Solution:** just rerun a few more times and it works???
 

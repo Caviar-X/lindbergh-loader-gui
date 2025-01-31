@@ -852,7 +852,7 @@ impl LindberghConfig {
             File::create_new(&path)?;
         }
         let mut f = File::options().write(true).truncate(true).open(&path)?;
-        
+
         // NOTE: Properties that are commented out are currently in-dev settings that might supported in the future
         // NOTE: It might also be deprecated in the future
 
@@ -940,9 +940,9 @@ impl LindberghConfig {
         // writeln!(f, "ID_IP_SEAT_1 {}", self.id45_ip_seat[0])?;
         // writeln!(f, "ID_IP_SEAT_2 {}", self.id45_ip_seat[1])?;
         writeln!(f, "OR2_IP {}", self.outrun_link_ip)?;
-        for i in 1..=4 {
-            writeln!(f, "HARLEY_CAB{} {}", i, self.harley_cab[i - 1])?;
-        }
+        // for i in 1..=4 {
+        //     writeln!(f, "HARLEY_CAB{} {}", i, self.harley_cab[i - 1])?;
+        // }
         if self.cpu_freq > 0.0 {
             writeln!(f, "CPU_FREQ_GHZ {}", self.cpu_freq)?;
         }

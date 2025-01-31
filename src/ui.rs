@@ -1307,7 +1307,10 @@ impl LoaderApp {
                 }
                 Result::Ok(e) => {
                     if let Some(status) = e {
-                        self.set_modal(format!("Game exited with status {}",status), ModalStatus::Info);
+                        self.set_modal(
+                            format!("Game exited with status {}", status),
+                            ModalStatus::Info,
+                        );
                         break;
                     }
                 }

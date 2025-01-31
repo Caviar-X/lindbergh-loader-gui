@@ -25,7 +25,7 @@ fn get_test(name: impl ToString) -> Option<String> {
         _ => None,
     }
 }
-fn copy_files(path: &str, current_game: &GameTitle) -> anyhow::Result<()> {
+fn copy_files(path: &str) -> anyhow::Result<()> {
     let mut path = PathBuf::from(path);
     path.pop();
     for i in SO_LIST {
@@ -34,10 +34,6 @@ fn copy_files(path: &str, current_game: &GameTitle) -> anyhow::Result<()> {
             format!("{}/{}", path.display(), i),
         )?;
     }
-    std::fs::copy(
-        format!("./config/{:?}.conf", current_game),
-        format!("{}/lindbergh.conf", path.display()),
-    )?;
     Ok(())
 }
 fn delete_files(path: &str) -> anyhow::Result<()> {
@@ -46,13 +42,8 @@ fn delete_files(path: &str) -> anyhow::Result<()> {
     for i in SO_LIST {
         std::fs::remove_file(format!("{}/{}", path.display(), i))?;
     }
-    std::fs::remove_file(format!("{}/lindbergh.conf", path.display()))?;
-    if std::fs::exists(format!("{}/eeprom.bin", path.display()))? {
-        std::fs::remove_file(format!("{}/eeprom.bin", path.display()))?;
-    }
-    if std::fs::exists(format!("{}/sram.bin", path.display()))? {
-        std::fs::remove_file(format!("{}/sram.bin", path.display()))?;
-    }
+    std::fs::remove_file(format!("{}/eeprom.bin", path.display()))?;
+    std::fs::remove_file(format!("{}/sram.bin", path.display()))?;
     Ok(())
 }
 pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<ExitStatus>> {
@@ -61,6 +52,8 @@ pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<Exit
     if let Some(a) = child.try_wait()? {
         child.stderr.as_mut().unwrap().read_to_string(&mut s)?;
         eprintln!("\x1b[94m[INFO]\x1b[0m STDERR OUTPUT:\n {}", s);
+        child.stdout.as_mut().unwrap().read_to_string(&mut s)?;
+        eprintln!("\x1b[94m[INFO]\x1b[0m STDOUT OUTPUT:\n {}", s);
         delete_files(path)?;
         Ok(Some(a))
     } else {
@@ -68,7 +61,7 @@ pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<Exit
     }
 }
 pub fn run_game(path: &str, test_mode: bool, current_game: &GameTitle) -> anyhow::Result<Child> {
-    copy_files(path, current_game)?;
+    copy_files(path)?;
     let mut path = PathBuf::from(path);
     let ld_library_path = env::var("LD_LIBRARY_PATH").unwrap_or_default();
     let fname = path
@@ -90,6 +83,14 @@ pub fn run_game(path: &str, test_mode: bool, current_game: &GameTitle) -> anyhow
             },
         )
         .env("LD_PRELOAD", "lindbergh.so")
+        .env(
+            "LINDBERGH_CONFIG_PATH",
+            format!(
+                "{}/config/{:?}.conf",
+                env::current_dir()?.display(),
+                current_game
+            ),
+        )
         .arg(if test_mode && get_test(fname).is_none() {
             "-t"
         } else {
