@@ -1,16 +1,17 @@
 [package]
 name = "loader-gui"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.30.0"
-egui_extras = { version = "*", features = ["all_loaders","image"] }
-egui_alignments = "0.3.1"
+eframe = "0.31.0"
+egui_extras = { version = "0.31.0", features = ["all_loaders","image"] }
+egui_alignments = {version = "*", git = "https://github.com/a-littlebit/egui_alignments.git"}
 rfd = "0.15.2"
 anyhow = "1.0.95"
 network-interface = "2.0.0"
 calcmhz = "0.1.10"
+chrono = "0.4.39"
 
 [profile.release]
 lto = true

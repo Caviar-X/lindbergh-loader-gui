@@ -16,6 +16,12 @@ fn main() -> eframe::Result {
     if !fs::exists("./config").unwrap() {
         fs::create_dir("./config").unwrap();
     }
+    if !fs::exists("./log").unwrap() {
+        fs::create_dir("./log").unwrap();
+    }
+    if !fs::exists("./dynlibs").unwrap() {
+        panic!("Unable to find lindbergh-loader's file");
+    }
     eframe::run_native(
         "Linderbergh loader GUI",
         options,

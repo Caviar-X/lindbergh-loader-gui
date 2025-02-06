@@ -55,8 +55,11 @@ impl GameData {
         self.game_status = assign_data.game_status;
     }
 }
-// Those variable names will be used to generate pretty names
-// We do not care about revs (for now?)
+/// Those variable names will be used to generate pretty names
+/// When you add games,make sure you also added:
+/// - `all_variants()`
+/// - `From<Into<String>>` trait implementation
+/// - `as_gamedata()`
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GameTitle {
@@ -528,5 +531,22 @@ impl Display for GameTitle {
 impl From<GameData> for GameTitle {
     fn from(value: GameData) -> Self {
         GameTitle::from(value.game_title)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_conversion() {
+        for i in GameTitle::all_variants() {
+            if i.as_gamedata().game_title == "Unkown" {
+                panic!("Unclassified Game {:?}", i);
+            }
+            if GameTitle::from(i.as_gamedata()) == GameTitle::Unknown {
+                panic!("Unclassified Game {:?}", i);
+            }
+        }
     }
 }

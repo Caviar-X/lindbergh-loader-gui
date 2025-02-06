@@ -1,29 +1,45 @@
+use crate::games::GameTitle;
 use anyhow::anyhow;
+use chrono::Local;
+use std::fs;
+use std::fs::File;
 use std::io::Read;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::Duration;
 use std::{env, thread};
 
-use crate::games::GameTitle;
-const SO_LIST: [&str; 7] = [
+const SO_LIST: [&str; 10] = [
     "libkswapapi.so",
     "libposixtime.so",
     "libposixtime.so.1",
     "libposixtime.so.2.4",
+    "libcrypto.so.0.9.7",
+    "libopenal.so.0",
+    "libssl.so.0.9.7",
     "libsegaapi.so",
     "lindbergh.so",
     "libCg.so",
 ];
+
 fn get_test(name: impl ToString) -> Option<String> {
     match name.to_string().as_str() {
-        "./hod4M.elf" => Some("./hod4testM.elf".into()),
-        "./hodexRI.elf" => Some("./hodextestR.elf".into()),
-        "./Jennifer" => Some("../JenTest/JenTest".into()),
-        "./apacheM.elf" => Some("./apacheTestM.elf".into()),
-        "./vt3_Lindbergh" => Some("./vt3_testmode".into()),
+        "hod4M.elf" => Some("hod4testM.elf".into()),
+        "hodexRI.elf" => Some("hodextestR.elf".into()),
+        "Jennifer" => Some("../JenTest/JenTest".into()),
+        "apacheM.elf" => Some("apacheTestM.elf".into()),
+        "vt3_Lindbergh" => Some("vt3_testmode".into()),
         _ => None,
     }
+}
+fn check_files() -> anyhow::Result<()> {
+    for i in SO_LIST {
+        if !fs::exists(format!("./dynlibs/{}",i))? {
+            return Err(anyhow!("{} does not exists in dynlibs directory",i));
+        }
+    }
+    Ok(())
 }
 fn copy_files(path: &str) -> anyhow::Result<()> {
     let mut path = PathBuf::from(path);
@@ -50,10 +66,16 @@ pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<Exit
     thread::sleep(Duration::from_secs(1));
     let mut s = String::new();
     if let Some(a) = child.try_wait()? {
+        let mut f = File::create(format!(
+            "./log/{}.log",
+            Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        ))?;
         child.stderr.as_mut().unwrap().read_to_string(&mut s)?;
-        eprintln!("\x1b[94m[INFO]\x1b[0m STDERR OUTPUT:\n {}", s);
+        writeln!(f, "STDOUT\n{}", str::repeat("-", 64))?;
+        writeln!(f, "{}\n\n\n\n", s)?;
         child.stdout.as_mut().unwrap().read_to_string(&mut s)?;
-        eprintln!("\x1b[94m[INFO]\x1b[0m STDOUT OUTPUT:\n {}", s);
+        writeln!(f, "STDERR\n{}", str::repeat("-", 64))?;
+        writeln!(f, "{}", s)?;
         delete_files(path)?;
         Ok(Some(a))
     } else {
@@ -61,6 +83,7 @@ pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<Exit
     }
 }
 pub fn run_game(path: &str, test_mode: bool, current_game: &GameTitle) -> anyhow::Result<Child> {
+    check_files()?;
     copy_files(path)?;
     let mut path = PathBuf::from(path);
     let ld_library_path = env::var("LD_LIBRARY_PATH").unwrap_or_default();

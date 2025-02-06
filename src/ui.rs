@@ -1308,7 +1308,7 @@ impl LoaderApp {
                 Result::Ok(e) => {
                     if let Some(status) = e {
                         self.set_modal(
-                            format!("Game exited with status {}", status),
+                            format!("Game exited with status {}\nStdout and Stderr have been written to log file in ./log directory", status),
                             ModalStatus::Info,
                         );
                         break;
@@ -1348,7 +1348,7 @@ pub fn egui_key_to_keycode(key: &egui::Key) -> Option<u32> {
         if zero == '0' {
             return Some(19);
         } else {
-            return Some(((zero as u8) - 38) as u32);
+            return Some(((zero as u8) - 39) as u32);
         }
     }
     if zero.is_alphabetic() && key.name().len() == 1 {
