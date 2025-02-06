@@ -35,8 +35,8 @@ fn get_test(name: impl ToString) -> Option<String> {
 }
 fn check_files() -> anyhow::Result<()> {
     for i in SO_LIST {
-        if !fs::exists(format!("./dynlibs/{}",i))? {
-            return Err(anyhow!("{} does not exists in dynlibs directory",i));
+        if !fs::exists(format!("./dynlibs/{}", i))? {
+            return Err(anyhow!("{} does not exists in dynlibs directory", i));
         }
     }
     Ok(())
@@ -64,12 +64,13 @@ fn delete_files(path: &str) -> anyhow::Result<()> {
 }
 pub fn monitor_game(path: &str, child: &mut Child) -> anyhow::Result<Option<ExitStatus>> {
     thread::sleep(Duration::from_secs(1));
+    let mut f = File::create(format!(
+        "./log/{}.log",
+        Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+    ))?;
     let mut s = String::new();
+    writeln!(f, "Game Process ID: {}", child.id())?;
     if let Some(a) = child.try_wait()? {
-        let mut f = File::create(format!(
-            "./log/{}.log",
-            Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
-        ))?;
         child.stderr.as_mut().unwrap().read_to_string(&mut s)?;
         writeln!(f, "STDOUT\n{}", str::repeat("-", 64))?;
         writeln!(f, "{}\n\n\n\n", s)?;
@@ -123,6 +124,5 @@ pub fn run_game(path: &str, test_mode: bool, current_game: &GameTitle) -> anyhow
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    eprintln!("\x1b[94m[INFO]\x1b[0m Game process id: {:?}", child.id());
     Ok(child)
 }

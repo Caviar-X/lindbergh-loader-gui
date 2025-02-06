@@ -25,7 +25,7 @@ For graphical dependecies:
 - **Desktop Users**: Basically nothing is required
 
 
--  **WSL2 Users / Users without desktop environment**: at least one implementation of `xdg-desktop-portal` (for file picker) and X11 with some desktop environment package (such as libadwaita,etc.)
+-  **WSL2 Users / Users without desktop environment**: at least one implementation of `xdg-desktop-portal` (for file picker) and X11/Wayland with some desktop environment package (such as libadwaita,etc.)
 
 NOTE: I'm not very sure about non-desktop users' dependencies,but basically it'll work?
 
@@ -41,11 +41,11 @@ then you can found the executable named `loader-gui` in `./target/release`,move 
 
 3. move the `assets` directory into the same-level directory as the executable
 
-4. create a directory named `dynlibs` in the same-level directory as the executable,move everything from `/libs` and `/build` in lindbergh-loader directory.
+4. create a directory named `dynlibs` in the same-level directory as the executable,move everything from `/libs` and `/build` in lindbergh-loader directory into `dynlibs`.
 
 ## Troubleshooting
 
-if game exited unexpectedly,try open the loader in bash,it will output the stderr/stdout of the game and the process id of the game in its stderr.
+Find your game's stdout/stderr output in `./log` directory
 
 ## Known Issue
 
@@ -61,3 +61,13 @@ NOTE: So far this only happens on wsl2
 
 **Solution:** just rerun a few more times and it works???
 
+## TODOs
+
+- [ ] identitfy games from .elf
+- [ ] Import from existing lindbergh.conf
+- [ ] i18n
+- [ ] more themes
+- [ ] Automatically scaling
+- [ ] Automatic fetcher / updater of lindbergh-loader
+
+**If you have any ideas,open an issue.**
