@@ -36,8 +36,8 @@ impl Default for GameData {
         Self {
             game_type: None,
             not_working_on_ati: false,
-            game_title: "Unkown".into(),
-            game_id: "Unkown".into(),
+            game_title: "Unknown".into(),
+            game_id: "Unknown".into(),
             game_dvp: "DVP-XXXX".into(),
             game_status: false,
             config: LindberghConfig::default(),
@@ -55,6 +55,7 @@ impl GameData {
         self.game_status = assign_data.game_status;
     }
 }
+
 /// Those variable names will be used to generate pretty names
 /// When you add games,make sure you also added:
 /// - `all_variants()`
@@ -541,7 +542,7 @@ mod tests {
     #[test]
     fn test_conversion() {
         for i in GameTitle::all_variants() {
-            if i.as_gamedata().game_title == "Unkown" {
+            if i.as_gamedata().game_title == "Unknown" {
                 panic!("Unclassified Game {:?}", i);
             }
             if GameTitle::from(i.as_gamedata()) == GameTitle::Unknown {

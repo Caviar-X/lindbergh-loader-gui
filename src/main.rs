@@ -1,12 +1,13 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use eframe::egui;
 use loader_gui::ui::LoaderApp;
 use std::fs;
+
 fn main() -> eframe::Result {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/default.png")).unwrap();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([840.0, 700.0])
-            .with_resizable(false)
+            .with_inner_size([840.0,1400.0])
             .with_maximize_button(false)
             .with_icon(icon)
             .with_decorations(true),
@@ -32,7 +33,3 @@ fn main() -> eframe::Result {
     )
 }
 
-#[cfg(not(target_os = "linux"))]
-fn main() -> eframe::Result {
-    compile_error!("This should not be compiled outside linux!")
-}

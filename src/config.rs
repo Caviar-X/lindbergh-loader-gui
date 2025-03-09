@@ -6,7 +6,7 @@ use anyhow::{Ok, anyhow};
 use eframe::egui;
 use std::{
     fmt::{Debug, Display},
-    fs::{self, File, read_to_string},
+    fs::{self, read_to_string, File},
     io::Write,
     path::Path,
 };
@@ -589,7 +589,10 @@ impl Keymap {
     pub fn read_from_lindbergh_conf(&mut self, buf: &str) -> anyhow::Result<()> {
         for (cnt, i) in buf.lines().enumerate() {
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.is_empty() {
+            if r.is_empty() {
+                continue;
+            }
+            if r[0] == "#" {
                 continue;
             }
             if r.len() < 2 {
@@ -964,11 +967,17 @@ impl LindberghConfig {
         self.input_method.read_from_lindbergh_conf(buf)?;
         for (cnt, i) in buf.lines().enumerate() {
             if cnt == 0 {
-                self.exe_path = i.chars().skip(1).collect::<String>().trim().into();
+                let path = Into::<String>::into(i.chars().skip(1).collect::<String>().trim());
+                if Path::new(&path).exists() {
+                    self.exe_path = path;
+                }
                 continue;
             }
             let r = i.split_whitespace().collect::<Vec<&str>>();
-            if r[0] == "#" || r.is_empty() {
+            if r.is_empty() {
+                continue;
+            }
+            if r[0] == "#" {
                 continue;
             }
             if r.len() < 2 {

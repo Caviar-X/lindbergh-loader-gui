@@ -327,7 +327,7 @@ impl LoaderApp {
                 });
             });
         egui::SidePanel::left("left panel")
-            .exact_width(565.0)
+            .exact_width(ctx.available_rect().width())
             .show(ctx, |ui| {
                 ui.horizontal_top(|ui| {
                     egui::Grid::new("top grid")
@@ -515,7 +515,6 @@ impl LoaderApp {
             ui.separator();
             egui::ScrollArea::vertical()
                 .id_salt("Configure Game ScrollArea")
-                .auto_shrink(false)
                 .show(ui, |ui| {
                     egui_alignments::top_horizontal_wrapped(ui, |ui| {
                         egui::Grid::new("configure game grid").show(ui, |ui| {
@@ -529,9 +528,7 @@ impl LoaderApp {
                                 ui.label(&cl.exe_path);
                             }
                             if ui.small_button("📁").clicked() {
-                                if let Some(path) = FileDialog::new()
-                                    .add_filter("Executable File", &["elf", ""])
-                                    .pick_file()
+                                if let Some(path) = FileDialog::new().pick_file()
                                 {
                                     self.shared_state.temp_config.exe_path =
                                         path.to_string_lossy().to_string();
@@ -879,6 +876,31 @@ impl LoaderApp {
                                 ui.label("Card Reader 2:");
                                 ui.text_edit_singleline(&mut self.shared_state.temp_config.card_file[1]);
                             }
+                            ui.label("Or");
+                            if ui.button("Import from existing lindbergh config file").clicked() {
+                                if let Some(path) = FileDialog::new()
+                                    .add_filter("Lindbergh Config File(*.conf)", &["conf"])
+                                    .pick_file()
+                                {
+                                    let mut config = LindberghConfig::default();
+                                    if let Err(e) = config.read_from_lindbergh_conf_by_path(&path) {
+                                        self.set_modal(
+                                            format!(
+                                                "Error occurred while reading data from {}:\n{}",
+                                                path.to_string_lossy(),
+                                                e
+                                            ),
+                                            ModalStatus::Error,
+                                        );
+                                    } else {
+                                        self.shared_state.temp_config = config;
+                                    }
+                                }
+                            }
+                            ui.end_row();
+                            ui.end_row();
+                            ui.end_row();
+                            ui.end_row();
                         });
                     });
                 });

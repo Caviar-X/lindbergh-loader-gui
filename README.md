@@ -24,8 +24,13 @@ For graphical dependecies:
 
 - **Desktop Users**: Basically nothing is required
 
+- **WSL2 Users / Users without desktop environment**: 
 
--  **WSL2 Users / Users without desktop environment**: at least one implementation of `xdg-desktop-portal` (for file picker) and X11/Wayland with some desktop environment package (such as libadwaita,etc.)
+```bash
+sudo apt install libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libxkbcommon-x11-0 
+```
+
+(Thanks to [OOKAMIFR](https://github.com/OOKAMIFR))
 
 NOTE: I'm not very sure about non-desktop users' dependencies,but basically it'll work?
 
@@ -34,10 +39,12 @@ NOTE: I'm not very sure about non-desktop users' dependencies,but basically it'l
 1. [follow the guide on lindbergh-loader](https://github.com/lindbergh-loader/lindbergh-loader) and build the dynamic library.
 
 2. clone or download this project,`cd` into the project's directory and run
-```sh
-cargo build --release
-```
-then you can found the executable named `loader-gui` in `./target/release`,move it into anywhere you like.
+   
+   ```sh
+   cargo build --release
+   ```
+   
+   then you can found the executable named `loader-gui` in `./target/release`,move it into anywhere you like.
 
 3. move the `assets` directory into the same-level directory as the executable
 
@@ -55,7 +62,8 @@ Io error: Broken pipe (os error 32)
 Io error: Broken pipe (os error 32)
 Error: WinitEventLoop(ExitFailure(1))
 ```
-NOTE: So far this only happens on wsl2
+
+NOTE: This might related to link between wsl and powershell wsl (Thanks to [OOKAMIFR](https://github.com/OOKAMIFR))
 
 **Recreation:** No idea how to trigger this.
 
@@ -69,5 +77,8 @@ NOTE: So far this only happens on wsl2
 - [ ] more themes
 - [ ] Automatically scaling
 - [ ] Automatic fetcher / updater of lindbergh-loader
-
-**If you have any ideas,open an issue.**
+- [ ] Port this to windows
+  
+  
+  
+  **If you have any ideas,open an issue.**
